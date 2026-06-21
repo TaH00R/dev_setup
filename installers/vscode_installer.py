@@ -26,29 +26,68 @@ class VSCodeInstaller:
 
         print("[+] Downloading VS Code...")
 
-        response = requests.get(VSCODE_URL, stream=True)
-        response.raise_for_status()
+        try:
+            response = requests.get(VSCODE_URL, stream=True, timeout=30)
+            response.raise_for_status()
 
-        with open(INSTALLER_NAME, "wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
+            with open(INSTALLER_NAME, "wb") as file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    file.write(chunk)
 
-        print("[✓] Download complete")
+            print("[✓] Download complete")
+
+        except requests.ConnectionError:
+            raise ConnectionError(
+                "Failed to download VS Code. "
+                "Please verify your internet connection and try again."
+            )
+
+        except requests.Timeout:
+            raise TimeoutError(
+                "Download timed out. "
+                "Please check your internet connection and try again."
+            )
+
+        except requests.HTTPError as e:
+            raise RuntimeError(
+                f"Failed to download VS Code (HTTP {e.response.status_code}). "
+                "The download URL may be unavailable. "
+                "Please download manually from: https://code.visualstudio.com"
+            )
 
     @staticmethod
     def install():
         print("[+] Installing VS Code...")
 
-        subprocess.run(
-            [
-                INSTALLER_NAME,
-                "/VERYSILENT",
-                "/MERGETASKS=!runcode"
-            ],
-            check=True
-        )
+        try:
+            subprocess.run(
+                [
+                    INSTALLER_NAME,
+                    "/VERYSILENT",
+                    "/MERGETASKS=!runcode"
+                ],
+                check=True
+            )
 
-        print("[✓] VS Code installed")
+            print("[✓] VS Code installed")
+
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                "VS Code installer not found. "
+                "The download may have failed. Please try again."
+            )
+
+        except PermissionError:
+            raise PermissionError(
+                "Permission denied during VS Code installation. "
+                "Please run the terminal as Administrator."
+            )
+
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"VS Code installation failed (exit code {e.returncode}). "
+                "Please try installing manually from: https://code.visualstudio.com"
+            )
 
     @staticmethod
     def install_extensions():
@@ -83,7 +122,7 @@ class VSCodeInstaller:
 
             return result.returncode == 0
 
-        except Exception:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
     @classmethod
@@ -93,8 +132,12 @@ class VSCodeInstaller:
             print("[✓] VS Code already installed")
             return
 
-        cls.download()
-        cls.install()
+        try:
+            cls.download()
+            cls.install()
+        except (ConnectionError, TimeoutError, RuntimeError, FileNotFoundError, PermissionError) as e:
+            print(f"✗ {e}")
+            return
 
         try:
             cls.install_extensions()

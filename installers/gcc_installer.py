@@ -32,25 +32,63 @@ class GCCInstaller:
 
         print("[+] Downloading GCC...")
 
-        response = requests.get(GCC_URL, stream=True)
-        response.raise_for_status()
+        try:
+            response = requests.get(GCC_URL, stream=True, timeout=30)
+            response.raise_for_status()
 
-        with open(ZIP_NAME, "wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
+            with open(ZIP_NAME, "wb") as file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    file.write(chunk)
 
-        print("[✓] Download complete")
+            print("[✓] Download complete")
+
+        except requests.ConnectionError:
+            raise ConnectionError(
+                "Failed to download GCC. "
+                "Please verify your internet connection and try again."
+            )
+
+        except requests.Timeout:
+            raise TimeoutError(
+                "Download timed out. "
+                "Please check your internet connection and try again."
+            )
+
+        except requests.HTTPError as e:
+            raise RuntimeError(
+                f"Failed to download GCC (HTTP {e.response.status_code}). "
+                "The download URL may be unavailable. "
+                "Please download manually from: https://github.com/brechtsanders/winlibs_mingw/releases"
+            )
 
     @staticmethod
     def extract():
         print("[+] Extracting GCC...")
 
-        os.makedirs(INSTALL_DIR, exist_ok=True)
+        try:
+            os.makedirs(INSTALL_DIR, exist_ok=True)
 
-        with zipfile.ZipFile(ZIP_NAME, "r") as zip_ref:
-            zip_ref.extractall(INSTALL_DIR)
+            with zipfile.ZipFile(ZIP_NAME, "r") as zip_ref:
+                zip_ref.extractall(INSTALL_DIR)
 
-        print("[✓] Extraction complete")
+            print("[✓] Extraction complete")
+
+        except zipfile.BadZipFile:
+            raise RuntimeError(
+                "Failed to extract GCC. "
+                "The downloaded file may be corrupted. Please try again."
+            )
+
+        except PermissionError:
+            raise PermissionError(
+                "Permission denied during GCC extraction. "
+                "Please run the terminal as Administrator."
+            )
+
+        except OSError as e:
+            raise RuntimeError(
+                f"Failed to extract GCC: {e}"
+            )
 
     @staticmethod
     def find_bin_folder():
@@ -64,13 +102,26 @@ class GCCInstaller:
     def add_to_path(path):
         print("[+] Adding GCC to PATH...")
 
-        subprocess.run(
-            f'setx PATH "%PATH%;{path}"',
-            shell=True,
-            check=True
-        )
+        try:
+            subprocess.run(
+                f'setx PATH "%PATH%;{path}"',
+                shell=True,
+                check=True
+            )
 
-        print("[✓] PATH updated")
+            print("[✓] PATH updated")
+
+        except PermissionError:
+            raise PermissionError(
+                "Permission denied when updating PATH. "
+                "Please run the terminal as Administrator."
+            )
+
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"Failed to update PATH (exit code {e.returncode}). "
+                "Please add the GCC bin folder to PATH manually."
+            )
 
     @staticmethod
     def verify():
@@ -83,7 +134,7 @@ class GCCInstaller:
 
             return result.returncode == 0
 
-        except Exception:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
     @classmethod
@@ -93,15 +144,26 @@ class GCCInstaller:
             print("[✓] GCC already installed")
             return
 
-        cls.download()
-        cls.extract()
+        try:
+            cls.download()
+            cls.extract()
+        except (ConnectionError, TimeoutError, RuntimeError, PermissionError) as e:
+            print(f"✗ {e}")
+            return
 
         bin_path = cls.find_bin_folder()
 
         if not bin_path:
-            raise Exception("gcc.exe not found")
+            print("✗ Failed to install GCC.")
+            print("  gcc.exe not found after extraction.")
+            print("  The downloaded file may be corrupted. Please try again.")
+            return
 
-        cls.add_to_path(bin_path)
+        try:
+            cls.add_to_path(bin_path)
+        except (PermissionError, RuntimeError) as e:
+            print(f"✗ {e}")
+            return
 
         print("\n[!] Open a new terminal after installation.\n")
 

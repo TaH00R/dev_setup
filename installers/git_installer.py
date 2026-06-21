@@ -10,7 +10,7 @@ def is_git_installed():
             check=True
         )
         return True
-    except Exception:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 
@@ -37,5 +37,20 @@ def install_git():
 
         print("✓ Git installed successfully")
 
-    except subprocess.CalledProcessError:
-        print("✗ Failed to install Git")
+    except FileNotFoundError:
+        print("✗ Failed to install Git.")
+        print("  Please verify that Winget is installed and available in PATH.")
+        print("  Download it from: https://aka.ms/getwinget")
+
+    except PermissionError:
+        print("✗ Failed to install Git.")
+        print("  Permission denied. Please run the terminal as Administrator.")
+
+    except subprocess.CalledProcessError as e:
+        print(f"✗ Failed to install Git (exit code {e.returncode}).")
+        print("  Please verify your internet connection and try again.")
+        print("  You can also install Git manually from: https://git-scm.com")
+
+    except OSError as e:
+        print(f"✗ Failed to install Git.")
+        print(f"  System error: {e}")
