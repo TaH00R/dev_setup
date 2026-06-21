@@ -2,6 +2,7 @@ from installers.gcc_installer import GCCInstaller
 from installers.vscode_installer import VSCodeInstaller
 from installers.python_installer import PythonInstaller
 from installers.git_installer import GitInstaller
+from system_info import show_system_info
 from installers.java_installer import JavaInstaller
 from installers.node_installer import NodeInstaller
 
@@ -23,6 +24,7 @@ def show_menu():
         print(f"{key}. Install {name}")
 
     print("7. Install Everything")
+    print("8. System Information")
     print("0. Exit")
 
 
@@ -45,6 +47,9 @@ def main():
         elif choice == "7":
             install_all()
             print("\nSetup Complete!")
+
+        elif choice == "8":
+            show_system_info()
 
         elif choice in INSTALLERS:
             name, installer = INSTALLERS[choice]
