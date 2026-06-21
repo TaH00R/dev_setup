@@ -1,13 +1,18 @@
 import subprocess
 
-from installers.logger import get_logger
+from installers.errors import (
+    WINGET_MISSING_HINT,
+    describe_winget_error,
+    report_failure,
+    winget_available,
+)
 
 
 class GitInstaller:
 
     @staticmethod
     def setup():
-        GitInstaller._install_git()
+        install_git()
 
     @staticmethod
     def _is_git_installed():
@@ -24,12 +29,15 @@ class GitInstaller:
 
     @staticmethod
     def _install_git():
-        if GitInstaller._is_git_installed():
+        if is_git_installed():
             print("✓ Git is already installed")
             return
 
         print("Installing Git...")
-        get_logger().info("Installing Git")
+
+        if not winget_available():
+            report_failure("Failed to install Git", WINGET_MISSING_HINT)
+            return
 
         try:
             subprocess.run(
@@ -44,8 +52,14 @@ class GitInstaller:
             )
 
             print("✓ Git installed successfully")
-            get_logger().info("Git installed successfully")
 
-        except subprocess.CalledProcessError:
-            print("✗ Failed to install Git")
-            get_logger().error("Failed to install Git")
+        except (subprocess.CalledProcessError, FileNotFoundError, PermissionError) as error:
+            report_failure("Failed to install Git", describe_winget_error(error))
+
+
+def is_git_installed():
+    return GitInstaller._is_git_installed()
+
+
+def install_git():
+    GitInstaller._install_git()
