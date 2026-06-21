@@ -3,6 +3,7 @@ from installers.vscode_installer import VSCodeInstaller
 from installers.python_installer import PythonInstaller
 from installers.git_installer import GitInstaller
 from installers.java_installer import JavaInstaller
+from installers.cmake_installer import CMakeInstaller
 
 
 INSTALLERS = {
@@ -10,7 +11,8 @@ INSTALLERS = {
     "2": ("VS Code", VSCodeInstaller.setup),
     "3": ("Python", PythonInstaller.setup),
     "4": ("Git", GitInstaller.setup),
-    "5": ("Java", JavaInstaller.setup)
+    "5": ("Java", JavaInstaller.setup),
+    "6": ("CMake", CMakeInstaller.setup)
 }
 
 
@@ -20,7 +22,7 @@ def show_menu():
     for key, (name, _) in INSTALLERS.items():
         print(f"{key}. Install {name}")
 
-    print("6. Install Everything")
+    print("7. Install Everything")
     print("0. Exit")
 
 
@@ -40,7 +42,7 @@ def main():
             print("\nGoodbye!")
             break
 
-        elif choice == "6":
+        elif choice == "7":
             install_all()
             print("\nSetup Complete!")
 
