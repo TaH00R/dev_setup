@@ -1,5 +1,12 @@
 import subprocess
 
+from installers.errors import (
+    WINGET_MISSING_HINT,
+    describe_winget_error,
+    report_failure,
+    winget_available,
+)
+
 
 def is_git_installed():
     try:
@@ -21,6 +28,10 @@ def install_git():
 
     print("Installing Git...")
 
+    if not winget_available():
+        report_failure("Failed to install Git", WINGET_MISSING_HINT)
+        return
+
     try:
         subprocess.run(
             [
@@ -37,5 +48,5 @@ def install_git():
 
         print("✓ Git installed successfully")
 
-    except subprocess.CalledProcessError:
-        print("✗ Failed to install Git")
+    except (subprocess.CalledProcessError, FileNotFoundError, PermissionError) as error:
+        report_failure("Failed to install Git", describe_winget_error(error))

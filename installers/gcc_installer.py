@@ -5,6 +5,12 @@ import zipfile
 
 import requests
 
+from installers.errors import (
+    FILE_PERMISSION_HINT,
+    describe_network_error,
+    report_failure,
+)
+
 DOWNLOAD_DIR = "downloads"
 
 GCC_URL = (
@@ -93,15 +99,46 @@ class GCCInstaller:
             print("[✓] GCC already installed")
             return
 
-        cls.download()
-        cls.extract()
+        try:
+            cls.download()
+            cls.extract()
+        except requests.exceptions.RequestException as error:
+            report_failure("Failed to download GCC", describe_network_error(error))
+            return
+        except zipfile.BadZipFile:
+            report_failure(
+                "Failed to install GCC",
+                "The downloaded archive is corrupted or incomplete. "
+                "Please try again."
+            )
+            return
+        except PermissionError:
+            report_failure("Failed to install GCC", FILE_PERMISSION_HINT)
+            return
+        except OSError as error:
+            report_failure("Failed to install GCC", f"A file system error occurred: {error}")
+            return
 
         bin_path = cls.find_bin_folder()
 
         if not bin_path:
-            raise Exception("gcc.exe not found")
+            report_failure(
+                "Failed to install GCC",
+                "The GCC binaries were not found in the extracted files. "
+                "The download may be incomplete; please try again."
+            )
+            return
 
-        cls.add_to_path(bin_path)
+        try:
+            cls.add_to_path(bin_path)
+        except (subprocess.CalledProcessError, OSError) as error:
+            report_failure(
+                "GCC was installed, but updating PATH failed",
+                "Add this folder to your PATH manually:\n"
+                f"{bin_path}\n"
+                f"Reason: {error}"
+            )
+            return
 
         print("\n[!] Open a new terminal after installation.\n")
 
