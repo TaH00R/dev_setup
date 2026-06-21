@@ -55,6 +55,16 @@ class PythonInstallerTests(unittest.TestCase):
         self.assertIn("Failed to install Python", output)
         self.assertIn("Winget was not found", output)
 
+    def test_reports_failed_install_without_crashing(self):
+        buffer = io.StringIO()
+        error = subprocess.CalledProcessError(returncode=1, cmd=["winget"])
+        with mock.patch.object(python_installer, "is_python_installed", return_value=False), \
+                mock.patch.object(python_installer, "winget_available", return_value=True), \
+                mock.patch.object(python_installer.subprocess, "run", side_effect=error), \
+                redirect_stdout(buffer):
+            python_installer.install_python()
+        self.assertIn("Failed to install Python", buffer.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

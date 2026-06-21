@@ -1,13 +1,18 @@
 import subprocess
 
-from installers.logger import get_logger
+from installers.errors import (
+    WINGET_MISSING_HINT,
+    describe_winget_error,
+    report_failure,
+    winget_available,
+)
 
 
 class PythonInstaller:
 
     @staticmethod
     def setup():
-        PythonInstaller._install_python()
+        install_python()
 
     @staticmethod
     def _is_python_installed():
@@ -24,12 +29,15 @@ class PythonInstaller:
 
     @staticmethod
     def _install_python():
-        if PythonInstaller._is_python_installed():
+        if is_python_installed():
             print("✓ Python is already installed")
             return
 
         print("Installing Python...")
-        get_logger().info("Installing Python")
+
+        if not winget_available():
+            report_failure("Failed to install Python", WINGET_MISSING_HINT)
+            return
 
         try:
             subprocess.run(
@@ -44,8 +52,14 @@ class PythonInstaller:
             )
 
             print("✓ Python installed successfully")
-            get_logger().info("Python installed successfully")
 
-        except subprocess.CalledProcessError:
-            print("✗ Failed to install Python")
-            get_logger().error("Failed to install Python")
+        except (subprocess.CalledProcessError, FileNotFoundError, PermissionError) as error:
+            report_failure("Failed to install Python", describe_winget_error(error))
+
+
+def is_python_installed():
+    return PythonInstaller._is_python_installed()
+
+
+def install_python():
+    PythonInstaller._install_python()
