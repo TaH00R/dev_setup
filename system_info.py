@@ -9,17 +9,18 @@ or invoked from the Dev Setup menu.
 import platform
 import re
 import shutil
+import subprocess
 # (display name, executable looked up on PATH)
 DEV_TOOLS = [
-    ("Git", "git"),
-    ("Python", "python"),
-    ("GCC", "gcc"),
-    ("GDB", "gdb"),
-    ("Make", "make"),
-    ("VS Code", "code"),
-    ("CMake", "cmake"),
-    ("Java", "java"),
-    ("Node.js", "node"),
+    ("Git", "git", ["--version"]),
+    ("Python", "python", ["--version"]),
+    ("GCC", "gcc", ["--version"]),
+    ("GDB", "gdb", ["--version"]),
+    ("Make", "make", ["--version"]),
+    ("VS Code", "code", ["--version"]),
+    ("CMake", "cmake", ["--version"]),
+    ("Java", "java", ["-version"]),
+    ("Node.js", "node", ["--version"]),
 ]
 
 
