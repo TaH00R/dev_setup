@@ -1,6 +1,6 @@
 import subprocess
-import distro
 import platform
+import distro
 
 from installers.errors import (
     PACKAGE_MANAGER_MISSING_HINT,
@@ -21,18 +21,17 @@ elif "arch" in dist:
 elif "fedora" in dist:
     dist = "fedora"
 
-
-class CMakeInstaller:
+class VSCodeInstaller:
 
     @staticmethod
     def setup():
-        CMakeInstaller._install_cmake()
+        VSCodeInstaller._install_vscode()
 
     @staticmethod
-    def _is_cmake_installed():
+    def _is_vscode_installed():
         try:
             subprocess.run(
-                ["cmake", "--version"],
+                ["code", "--version"],
                 capture_output=True,
                 text=True,
                 check=True
@@ -40,24 +39,13 @@ class CMakeInstaller:
             return True
         except Exception:
             return False
-
+    
     @staticmethod
     def download():
         if OS == "Windows":
-            subprocess.run(
-                [
-                    "winget",
-                    "install",
-                    "--id",
-                    "Kitware.CMake",
-                    "-e",
-                    "--accept-source-agreements",
-                    "--accept-package-agreements"
-                ],
-                check=True
-            )
+            subprocess.run(["winget", "install", "Microsoft.VisualStudioCode"], check=True)
         elif OS == "Linux":
-            packages = ["cmake"]
+            packages = ["code"]
             match dist:
                 case "debian":
                     subprocess.run(["sudo", "apt", "update"])
@@ -76,39 +64,38 @@ class CMakeInstaller:
                     return
 
     @staticmethod
-    def _install_cmake():
-        if CMakeInstaller._is_cmake_installed():
-            print("\n✓ CMake is already installed")
+    def _install_vscode():
+        if VSCodeInstaller._is_vscode_installed():
+            print("\n✓ VSCode is already installed")
             return
 
-        print("Installing CMake...")
-        get_logger().info("Installing CMake")
+        print("Installing VSCode...")
+        get_logger().info("Installing VSCode")
 
         if OS == "Windows" and not winget_available():
-            report_failure("Failed to install CMake", PACKAGE_MANAGER_MISSING_HINT)
-            get_logger().error("Failed to install CMake\n" + PACKAGE_MANAGER_MISSING_HINT)
+            report_failure("Failed to install VSCode", PACKAGE_MANAGER_MISSING_HINT)
+            get_logger().error("Failed to install VSCode\n" + PACKAGE_MANAGER_MISSING_HINT)
             return
 
         try:
-            CMakeInstaller.download()
+            VSCodeInstaller.download()
 
         except (subprocess.CalledProcessError, FileNotFoundError, PermissionError) as error:
             if OS == "Windows":
-                report_failure("Failed to install CMake", describe_winget_error(error))
-                get_logger().error(f"Failed to install CMake\n{describe_winget_error(error)}")
+                report_failure("Failed to install VSCode", describe_winget_error(error))
+                get_logger().error(f"Failed to install VSCode\n{describe_winget_error(error)}")
             else:
                 failure_message = f"Package manager error: {error}"
-                report_failure("Failed to install CMake", failure_message)
-                get_logger().error(f"Failed to install CMake\n{failure_message}")
+                report_failure("Failed to install VSCode", failure_message)
+                get_logger().error(f"Failed to install VSCode\n{failure_message}")
             return
 
-        print("\n✓ CMake installed successfully")
-        get_logger().info("CMake installed successfully")
+        print("\n✓ VSCode installed successfully")
+        get_logger().info("VSCode installed successfully")
+
+def is_vscode_installed():
+    return VSCodeInstaller._is_vscode_installed()
 
 
-def is_cmake_installed():
-    return CMakeInstaller._is_cmake_installed()
-
-
-def install_cmake():
-    CMakeInstaller._install_cmake()
+def install_vscode():
+    VSCodeInstaller._install_vscode()

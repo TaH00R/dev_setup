@@ -1,6 +1,6 @@
 import subprocess
-import distro
 import platform
+import distro
 
 from installers.errors import (
     PACKAGE_MANAGER_MISSING_HINT,
@@ -21,18 +21,17 @@ elif "arch" in dist:
 elif "fedora" in dist:
     dist = "fedora"
 
-
-class CMakeInstaller:
+class GCCInstaller:
 
     @staticmethod
     def setup():
-        CMakeInstaller._install_cmake()
+        install_gcc()
 
     @staticmethod
-    def _is_cmake_installed():
+    def _is_gcc_installed():
         try:
             subprocess.run(
-                ["cmake", "--version"],
+                ["gcc", "--version"],
                 capture_output=True,
                 text=True,
                 check=True
@@ -40,24 +39,13 @@ class CMakeInstaller:
             return True
         except Exception:
             return False
-
+    
     @staticmethod
     def download():
         if OS == "Windows":
-            subprocess.run(
-                [
-                    "winget",
-                    "install",
-                    "--id",
-                    "Kitware.CMake",
-                    "-e",
-                    "--accept-source-agreements",
-                    "--accept-package-agreements"
-                ],
-                check=True
-            )
+            subprocess.run(["winget", "install", "BrechtSanders.WinLibs.POSIX.UCRT"], check=True)
         elif OS == "Linux":
-            packages = ["cmake"]
+            packages = ["gcc", "gdb", "make"]
             match dist:
                 case "debian":
                     subprocess.run(["sudo", "apt", "update"])
@@ -76,39 +64,38 @@ class CMakeInstaller:
                     return
 
     @staticmethod
-    def _install_cmake():
-        if CMakeInstaller._is_cmake_installed():
-            print("\n✓ CMake is already installed")
+    def _install_gcc():
+        if is_gcc_installed():
+            print("✓ GCC is already installed")
             return
 
-        print("Installing CMake...")
-        get_logger().info("Installing CMake")
+        print("Installing GCC...")
+        get_logger().info("Installing GCC")
 
         if OS == "Windows" and not winget_available():
-            report_failure("Failed to install CMake", PACKAGE_MANAGER_MISSING_HINT)
-            get_logger().error("Failed to install CMake\n" + PACKAGE_MANAGER_MISSING_HINT)
+            report_failure("Failed to install GCC", PACKAGE_MANAGER_MISSING_HINT)
+            get_logger().error("Failed to install GCC\n" + PACKAGE_MANAGER_MISSING_HINT)
             return
 
         try:
-            CMakeInstaller.download()
-
+            GCCInstaller.download()
         except (subprocess.CalledProcessError, FileNotFoundError, PermissionError) as error:
             if OS == "Windows":
-                report_failure("Failed to install CMake", describe_winget_error(error))
-                get_logger().error(f"Failed to install CMake\n{describe_winget_error(error)}")
+                report_failure("Failed to install GCC", describe_winget_error(error))
+                get_logger().error(f"Failed to install GCC\n{describe_winget_error(error)}")
             else:
                 failure_message = f"Package manager error: {error}"
-                report_failure("Failed to install CMake", failure_message)
-                get_logger().error(f"Failed to install CMake\n{failure_message}")
+                report_failure("Failed to install GCC", failure_message)
+                get_logger().error(f"Failed to install GCC\n{failure_message}")
             return
 
-        print("\n✓ CMake installed successfully")
-        get_logger().info("CMake installed successfully")
+        print("✓ GCC installed successfully")
+        get_logger().info("GCC installed successfully")
 
 
-def is_cmake_installed():
-    return CMakeInstaller._is_cmake_installed()
+def is_gcc_installed():
+    return GCCInstaller._is_gcc_installed()
 
 
-def install_cmake():
-    CMakeInstaller._install_cmake()
+def install_gcc():
+    GCCInstaller._install_gcc()

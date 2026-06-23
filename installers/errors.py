@@ -25,6 +25,12 @@ FILE_PERMISSION_HINT = (
     "or run the terminal as Administrator."
 )
 
+PACKAGE_MANAGER_MISSING_HINT = (
+    "Package manager (winget/apt/dnf) was not found. Please verify that a valid package manager is installed and "
+    "available in PATH.\n"
+    'For Windows install "App Installer" from the Microsoft Store, or see '
+    f"{WINGET_DOCS_URL}"
+)
 
 def winget_available():
     """Return True if the winget executable can be found on PATH."""

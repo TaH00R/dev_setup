@@ -3,19 +3,22 @@
 Automated setup tool for programming languages,
 compilers and development environments.
 
+![Alt Text](image.png)
+
 ## Features
 
+- Windows and Linux support
 - Git Installer
 - VS Code Installer
 - GCC Installer
-- Python Installer (WIP)
+- Python Installer 
+- Cmake Installer
+- Java Installer
+- Node.js Installer
 
 ## Roadmap
 
-- Java Support
-- Node.js Support
 - Flutter Support
-- Linux Support
 - MacOS Support
 
 

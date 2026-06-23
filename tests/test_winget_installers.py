@@ -42,6 +42,17 @@ class GitInstallerTests(unittest.TestCase):
             git_installer.install_git()
         self.assertIn("already installed", buffer.getvalue())
 
+    def test_declined_system_update_stops_install(self):
+        buffer = io.StringIO()
+        with mock.patch.object(git_installer, "OS", "Linux"), \
+                mock.patch.object(git_installer, "is_git_installed", return_value=False), \
+                mock.patch.object(git_installer, "confirm_system_update", return_value=False), \
+                redirect_stdout(buffer):
+            git_installer.install_git()
+        output = buffer.getvalue()
+        self.assertIn("Skipped Git system update.", output)
+        self.assertNotIn("installed successfully", output)
+
 
 class PythonInstallerTests(unittest.TestCase):
 
@@ -64,6 +75,38 @@ class PythonInstallerTests(unittest.TestCase):
                 redirect_stdout(buffer):
             python_installer.install_python()
         self.assertIn("Failed to install Python", buffer.getvalue())
+
+
+class JavaInstallerTests(unittest.TestCase):
+
+    def test_declined_system_update_stops_install(self):
+        from installers import java_installer
+
+        buffer = io.StringIO()
+        with mock.patch.object(java_installer, "OS", "Linux"), \
+                mock.patch.object(java_installer.JavaInstaller, "_is_java_installed", return_value=False), \
+                mock.patch.object(java_installer, "confirm_system_update", return_value=False), \
+                redirect_stdout(buffer):
+            java_installer.JavaInstaller.setup()
+        output = buffer.getvalue()
+        self.assertIn("Skipped Java system update.", output)
+        self.assertNotIn("installed successfully", output)
+
+
+class GCCInstallerPackageManagerTests(unittest.TestCase):
+
+    def test_declined_system_update_stops_install(self):
+        from installers import gcc_installer_package_manager as gcc_pkg
+
+        buffer = io.StringIO()
+        with mock.patch.object(gcc_pkg, "OS", "Linux"), \
+                mock.patch.object(gcc_pkg, "is_gcc_installed", return_value=False), \
+                mock.patch.object(gcc_pkg, "confirm_system_update", return_value=False), \
+                redirect_stdout(buffer):
+            gcc_pkg.install_gcc()
+        output = buffer.getvalue()
+        self.assertIn("Skipped GCC system update.", output)
+        self.assertNotIn("installed successfully", output)
 
 
 if __name__ == "__main__":

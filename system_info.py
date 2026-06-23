@@ -8,14 +8,16 @@ or invoked from the Dev Setup menu.
 """
 import platform
 import shutil
-
 # (display name, executable looked up on PATH)
 DEV_TOOLS = [
     ("Git", "git"),
     ("Python", "python"),
     ("GCC", "gcc"),
+    ("GDB", "gdb"),
+    ("Make", "make"),
     ("VS Code", "code"),
     ("CMake", "cmake"),
+    ("Java", "java"),
     ("Node.js", "node"),
 ]
 
@@ -43,7 +45,8 @@ def show_system_info():
     print(f"OS:           {info['os'] or 'unknown'}")
     print(f"Architecture: {info['architecture']}")
     print(f"Python:       {info['python_version']}")
-    print(f"Winget:       {'available' if info['winget_available'] else 'not found'}")
+    if platform.system() == "Windows":
+        print(f"Winget:       {'available' if info['winget_available'] else 'not found'}")
 
     print("\nInstalled Tools:")
     for name, installed in get_installed_tools():

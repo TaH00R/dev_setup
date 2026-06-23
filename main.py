@@ -1,5 +1,5 @@
-from installers.gcc_installer import GCCInstaller
-from installers.vscode_installer import VSCodeInstaller
+from installers.gcc_installer_package_manager import GCCInstaller
+from installers.vscode_installer_package_manager import VSCodeInstaller
 from installers.python_installer import PythonInstaller
 from installers.git_installer import GitInstaller
 from system_info import show_system_info
@@ -9,7 +9,7 @@ from installers.node_installer import NodeInstaller
 
 
 INSTALLERS = {
-    "1": ("GCC", GCCInstaller.setup),
+    "1": ("GCC (GDB and Make included)", GCCInstaller.setup),
     "2": ("VS Code", VSCodeInstaller.setup),
     "3": ("Python", PythonInstaller.setup),
     "4": ("Git", GitInstaller.setup),
@@ -37,13 +37,16 @@ def install_all():
 
 
 def main():
+    print("\033[?1049h")
+    show_system_info()
     while True:
+
         show_menu()
 
         choice = input("\nEnter your choice: ").strip()
-
+        print("\033[2J\033[0;0H")
         if choice == "0":
-            print("\nGoodbye!")
+            print("\n\033[?1049lGoodbye!")
             break
 
         elif choice == "8":

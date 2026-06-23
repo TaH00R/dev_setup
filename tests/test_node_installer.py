@@ -51,6 +51,23 @@ class NodeInstallerTests(unittest.TestCase):
             NodeInstaller.setup()
         self.assertIn("Node.js installed successfully", buffer.getvalue())
 
+    def test_linux_download_uses_node_packages(self):
+        expected_commands = {
+            "debian": ["sudo", "apt", "install", "-y", "nodejs", "npm"],
+            "arch": ["sudo", "pacman", "-S", "--noconfirm", "nodejs", "npm"],
+            "fedora": ["sudo", "dnf", "install", "-y", "nodejs", "npm"],
+            "opensuse": ["sudo", "zypper", "install", "-y", "nodejs", "npm"],
+        }
+
+        for distro_name, expected_command in expected_commands.items():
+            with self.subTest(distro=distro_name), \
+                    mock.patch("installers.node_installer.OS", "Linux"), \
+                    mock.patch("installers.node_installer.dist", distro_name), \
+                    mock.patch("installers.node_installer.subprocess.run") as run_mock:
+                NodeInstaller.download()
+
+            run_mock.assert_any_call(expected_command)
+
 
 if __name__ == "__main__":
     unittest.main()
