@@ -24,6 +24,7 @@ Automated setup tool for programming languages, compilers, and development envir
 
 ### Prerequisites
 
+- Your OS/Distro's built in package manager (e.g. Winget on Windows and apt for debian based)
 - [**Python 3.x**](https://www.python.org/downloads/)
 - [**Pip**](https://pip.pypa.io/en/stable/installation/)
 
@@ -57,7 +58,6 @@ pip install -r requirements.txt
 # Start the interactive setup menu
 python3 main.py
 ```
----
 
 ## Usage
 
@@ -96,7 +96,6 @@ A continuous integration (CI) pipeline is set up via GitHub Actions. On every pu
 3. Lints the codebase using `ruff`.
 4. Runs the entire unit test suite.
 
----
 
 ## Contributing
 
