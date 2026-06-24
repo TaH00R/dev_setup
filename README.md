@@ -88,15 +88,6 @@ The codebase has robust unit tests covering the installers, system info detectio
 python -m unittest discover -s tests -v
 ```
 
-### GitHub Actions CI
-
-A continuous integration (CI) pipeline is set up via GitHub Actions. On every push and pull request to the `main` branch, the CI runner automatically:
-1. Installs Python and updates dependencies.
-2. Performs a syntax check using `compileall` across the files.
-3. Lints the codebase using `ruff`.
-4. Runs the entire unit test suite.
-
-
 ## Contributing
 
 Contributions are welcome!
