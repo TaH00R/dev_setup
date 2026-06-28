@@ -44,6 +44,7 @@ class GCCInstaller:
     def download():
         if OS == "Windows":
             subprocess.run(["winget", "install", "BrechtSanders.WinLibs.POSIX.UCRT"], check=True)
+            subprocess.run(["winget", "install", "GnuWin32.Make"], check=True)
         elif OS == "Linux":
             packages = ["gcc", "gdb", "make"]
             match dist:

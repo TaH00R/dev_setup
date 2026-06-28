@@ -27,7 +27,7 @@ Automated setup tool for programming languages, compilers, and development envir
 - Your OS/Distro's built in package manager (e.g. Winget on Windows and apt for debian based)
 - [**Python 3.x**](https://www.python.org/downloads/)
 - [**Pip**](https://pip.pypa.io/en/stable/installation/)
-
+- [**Git**](https://git-scm.com/install/)
 
 ### Quick Start
 

@@ -9,7 +9,7 @@ from installers.node_installer import NodeInstaller
 
 
 INSTALLERS = {
-    "1": ("GCC (GDB and Make included)", GCCInstaller.setup),
+    "1": ("C (GCC, GDB and Make included)", GCCInstaller.setup),
     "2": ("VS Code", VSCodeInstaller.setup),
     "3": ("Python", PythonInstaller.setup),
     "4": ("Git", GitInstaller.setup),
@@ -37,7 +37,7 @@ def install_all():
 
 
 def main():
-    print("\033[?1049h")
+    print("\033[?1049h\033[0;0H")
     show_system_info()
     while True:
 
