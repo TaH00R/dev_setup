@@ -35,8 +35,7 @@ def get_system_info():
 
 def get_installed_tools():
     """Return a list of (name, is_installed) for the known development tools."""
-    return [(name, shutil.which(command) is not None) for name, command in DEV_TOOLS]
-
+    return [(name, shutil.which(command) is not None) for name, command, args in DEV_TOOLS]
 
 def show_system_info():
     """Print the environment summary and the status of each development tool."""
