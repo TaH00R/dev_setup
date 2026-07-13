@@ -6,7 +6,7 @@ from system_info import show_system_info
 from installers.java_installer import JavaInstaller
 from installers.cmake_installer import CMakeInstaller
 from installers.node_installer import NodeInstaller
-
+from installers.docker_installer import DockerInstaller
 
 INSTALLERS = {
     "1": ("C (GCC, GDB and Make included)", GCCInstaller.setup),
@@ -15,7 +15,8 @@ INSTALLERS = {
     "4": ("Git", GitInstaller.setup),
     "5": ("Java", JavaInstaller.setup),
     "6": ("CMake", CMakeInstaller.setup),
-    "7": ("Node.js", NodeInstaller.setup)
+    "7": ("Node.js", NodeInstaller.setup),
+    "8": ("Docker", DockerInstaller.setup),
 }
 
 
@@ -25,8 +26,8 @@ def show_menu():
     for key, (name, _) in INSTALLERS.items():
         print(f"{key}. Install {name}")
 
-    print("8. Install Everything")
-    print("9. System Information")
+    print("9. Install Everything")
+    print("10. System Information")
     print("0. Exit")
 
 
@@ -49,12 +50,12 @@ def main():
             print("\n\033[?1049lGoodbye!")
             break
 
-        elif choice == "8":
-            install_all()
-            print("\nSetup Complete!")
-
         elif choice == "9":
-            show_system_info()
+                install_all()
+                print("\nSetup Complete!")
+
+        elif choice == "10":
+                 show_system_info()
 
         elif choice in INSTALLERS:
             name, installer = INSTALLERS[choice]
