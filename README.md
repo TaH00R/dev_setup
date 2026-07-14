@@ -10,7 +10,7 @@ Automated setup tool for programming languages, compilers, and development envir
 - Git Installer
 - VS Code Installer
 - GCC Installer
-- Python Installer 
+- Python Installer
 - Cmake Installer
 - Java Installer
 - Node.js Installer
@@ -34,6 +34,7 @@ Automated setup tool for programming languages, compilers, and development envir
 Clone this repository and run the setup script:
 
 For Windows
+
 ```bash
 # Clone the repository
 git clone https://github.com/TaH00R/dev_setup.git
@@ -47,6 +48,7 @@ python main.py
 ```
 
 For Linux
+
 ```bash
 # Clone the repository
 git clone https://github.com/TaH00R/dev_setup.git
@@ -78,7 +80,24 @@ When you run `python main.py`, you will be presented with an interactive command
 
 Enter your choice:
 ```
+
 Using 0-9 input select desired package or install everything get a full system ready (not recommended as unused packages do pile up to waste storage).
+
+- Docker Installer
+
+=== Dev Setup ===
+
+1. Install GCC
+2. Install VS Code
+3. Install Python
+4. Install Git
+5. Install Java
+6. Install CMake
+7. Install Node.js
+8. Install Docker
+9. Install Everything
+10. System Information
+11. Exit
 
 ### Running Tests Locally
 
