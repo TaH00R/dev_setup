@@ -19,7 +19,9 @@ repository root, without a nested `dev_setup/` directory. Domain records and
 platform inspection were introduced in step 2. Step 4 adds reviewed native
 adapters in root-level `package_managers/` and the worker-side command runner
 in `system/`. Step 6 adds root-level `services/` for inventory, dependency/conflict
-planning, exact-plan consent and verified operations. The GUI remains future work.
+planning, exact-plan consent and verified operations. Step 7 adds the optional
+PySide6 presentation layer in `app/ui/` and Qt-independent desktop aggregation
+in `services/desktop.py`.
 Importing core modules must not
 discover software, start a process,
 load Qt, or import `app`, the launcher, or `app/legacy/`.
@@ -60,8 +62,8 @@ interfaces, not widget code. Runtime managers form a separate adapter family
 because project-local runtimes differ from system application installation.
 
 `app/main.py` exposes read-only catalog commands through `python -m app` and
-the small root `main.py` launcher. The desktop UI will be added under `app/`
-when implemented; there are no placeholder widget directories. The old menu,
+the small root `main.py` launcher. `python -m app gui` lazily imports the PySide6
+bootstrap, with screens, review and workers under `app/ui/`. The old menu,
 system information helper and installers live together under `app/legacy/`.
 `python -m app legacy` opts into that menu with lazy imports, preserving its
 regression coverage while keeping its dependencies out of core startup.

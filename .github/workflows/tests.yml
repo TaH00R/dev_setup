@@ -21,13 +21,14 @@ jobs:
         python: ['3.10', '3.11', '3.12', '3.13', '3.14']
     env:
       PYTHONUTF8: '1'
+      QT_QPA_PLATFORM: offscreen
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - name: Install legacy test dependencies
-        run: python -m pip install -r requirements.txt
+      - name: Install test dependencies including Qt Widgets
+        run: python -m pip install -r requirements.txt -r requirements-gui.txt
       - name: Run deterministic unit tests
         run: python -W error::ResourceWarning -m unittest discover -s tests -t . -v
       - name: Check application catalog commands

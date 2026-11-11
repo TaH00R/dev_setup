@@ -2,21 +2,21 @@
 
 One place to find and manage the tools you use for development.
 
-Dev Setup is being built as a Python application with a PySide6 desktop interface
-for Windows, macOS, and Linux. The core can already search a curated catalog,
-build dependency-aware plans, require approval, run supported operations, and
-verify the result. **The desktop interface is still in development.**
+Dev Setup is a Python application with a PySide6 desktop interface for Windows,
+macOS, and Linux. The first desktop workflow is available: browse the catalog,
+inspect sources, review plans, and follow operations through their verified result.
+Development is ongoing; this is not a production release.
 
-For now, you can explore the catalog from the terminal or use the Python service
-API. Installation workflows are enabled for APT on Ubuntu 24.04 and Homebrew on
+You can use the desktop, read-only catalog commands, or the Python service API.
+Installation workflows are enabled for APT on Ubuntu 24.04 and Homebrew on
 macOS. The remaining adapters have tested command builders, but still need
 inventory and transaction parsers before the application can use them end to end.
 See the [support matrix](docs/support-matrix.md) for the details.
 
 ## Try it
 
-You'll need Python 3.10–3.14 and a copy of this repository. The catalog commands
-use only Python's standard library, so there's nothing to install with pip yet.
+You'll need Python 3.10–3.14 and a copy of this repository. Install the optional
+Qt Widgets dependency to open the desktop:
 
 On Windows (PowerShell):
 
@@ -24,8 +24,8 @@ On Windows (PowerShell):
 git clone https://github.com/TaH00R/dev_setup.git
 cd dev_setup
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m app catalog validate
-.\.venv\Scripts\python.exe -m app catalog search git
+.\.venv\Scripts\python.exe -m pip install -r requirements-gui.txt
+.\.venv\Scripts\python.exe -m app gui
 ```
 
 On macOS or Linux:
@@ -34,11 +34,19 @@ On macOS or Linux:
 git clone https://github.com/TaH00R/dev_setup.git
 cd dev_setup
 python3 -m venv .venv
-.venv/bin/python -m app catalog validate
-.venv/bin/python -m app catalog search git
+.venv/bin/python -m pip install -r requirements-gui.txt
+.venv/bin/python -m app gui
 ```
 
-Validation checks all 14 package definitions and their 39 reviewed platform
+Prefer the terminal? These commands need no third-party dependencies:
+
+```sh
+python -m app catalog validate
+python -m app catalog search git
+```
+
+Use the Python executable from your virtual environment. Validation checks all
+14 package definitions and their 39 reviewed platform
 mappings. Search shows each package's native identifier, backend, and source.
 These commands read local metadata and do not run package managers. A catalog
 mapping alone does not mean a package can be installed on your machine.
@@ -49,7 +57,8 @@ all commands. `python main.py` is also available as a launcher for the same app.
 ## How the repository fits together
 
 ```text
-app/                 Application entry points; future desktop UI
+app/                 Desktop bootstrap and application entry points
+  ui/                PySide6 screens, review dialog, theme, and workers
   legacy/            Preserved installer menu and its older helpers
 models/              Package, inventory, plan, and operation records
 services/            Inventory, planning, consent, and execution
@@ -70,6 +79,13 @@ The core stays independent of Qt. Adapters own native commands; catalog files
 contain metadata rather than scripts. Plans expose the selected source, command,
 privileges, and expected effects before approval. Operations report failures and
 verify native inventory before declaring success.
+
+The desktop includes Dashboard, Explore, Installed, Updates, Queue, History, and
+Settings. Search is local and curated. Install, remove, and update actions open a
+plan review; administrator prompts need a separate approval. Settings, history,
+and logs last for the current session. Windows can browse the catalog, but native
+package management there is not enabled yet. See the [desktop guide](docs/desktop.md)
+for the workflow and current limits.
 
 ## The older installer menu
 
@@ -104,9 +120,10 @@ fake Scoop script; they never install developer tools. Native installation,
 elevation, packaging, and clean-machine behavior still need disposable-system
 coverage. CI is configured for Python 3.10–3.14 on Windows, macOS, and Linux.
 
-The next milestone is the PySide6 desktop workflow, followed by live discovery,
-runtime managers, portable presets, and release packaging. More native inventory
-readers are also needed to enable the remaining backends.
+The next milestone is hybrid live discovery, followed by runtime managers,
+portable presets, and release packaging. More native inventory readers are also
+needed to enable the remaining backends. The existing Windows build workflow
+still produces a CLI preview; desktop packaging belongs to the release milestone.
 
 Read the [development guide](docs/development.md), [architecture](docs/architecture.md),
 and [operation service guide](docs/operations.md) before changing the core. For

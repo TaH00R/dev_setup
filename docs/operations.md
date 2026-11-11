@@ -137,7 +137,8 @@ system changes can remain. No rollback is implemented or claimed.
 `ExecutionReport` includes operation results and in-memory audit records with
 package/action/backend/source/version, approval time, terminal time and status.
 Audit records exclude command output, environment values and credentials.
-Persistent history is step 10; the desktop consent/worker UI is step 7.
+Persistent history is step 10. The step 7 [desktop UI](desktop.md) now supplies
+explicit review/consent and background workers for these services.
 
 Native format references: [Homebrew JSON queries](https://docs.brew.sh/Querying-Brew),
 [APT simulation and version selection](https://manpages.ubuntu.com/manpages/noble/man8/apt-get.8.html),

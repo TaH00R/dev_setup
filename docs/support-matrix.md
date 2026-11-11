@@ -5,6 +5,10 @@ Native installation/elevation has not been tested on disposable Linux/macOS
 machines. Metadata matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
 
+The [desktop workflow](desktop.md) now uses APT/Homebrew inspection services.
+Other backends remain command-contract support until their native readers are
+implemented. Windows currently supports catalog browsing in the desktop.
+
 ## Backend capabilities
 
 | Backend | Host selection | Version / search / inventory / show | Install / remove | Individual upgrade | Reviewed package sources |

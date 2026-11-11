@@ -28,6 +28,13 @@ code is excluded from strict typing during migration. Both checkers are
 development-only dependencies. Their version ranges bound major changes;
 this baseline does not provide a dependency lock.
 
+The optional desktop uses `requirements-gui.txt` (PySide6-Essentials, including
+Qt Widgets and QtTest). Development requirements include it for strict GUI
+typing and acceptance tests. Start the desktop with `python -m app gui`.
+GUI tests run offscreen and mock native operations; CI sets `QT_QPA_PLATFORM=offscreen`.
+The suite explicitly skips GUI checks when Qt is absent. See the
+[desktop guide](desktop.md) for workflow, worker lifecycle, and platform limits.
+
 Formatting/linting cover the new core, domain tests, the core import test, CLI
 regression tests, catalog service/loader/schema tests, and `app/legacy/system_info.py`.
 Runner, adapter, Scoop bridge, inventory inspection and operation service tests

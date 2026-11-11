@@ -13,9 +13,10 @@ from services.catalog.service import CatalogService
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dev-setup",
-        description="Explore the Dev Setup catalog. The desktop interface is in development.",
+        description="Dev Setup: browse the catalog or open the desktop with the gui command.",
     )
     commands = parser.add_subparsers(dest="command")
+    commands.add_parser("gui", help="Open the PySide6 desktop")
     catalog = commands.add_parser(
         "catalog", help="Read or validate local package metadata"
     )
@@ -41,6 +42,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command is None:
         parser.print_help()
         return 0
+    if args.command == "gui":
+        try:
+            from app.bootstrap import launch
+
+            return launch()
+        except ModuleNotFoundError as error:
+            if error.name is None or not error.name.startswith("PySide6"):
+                raise
+            print(
+                "This CLI preview does not include Qt. Run the desktop from a source checkout with requirements-gui.txt."
+                if getattr(sys, "frozen", False)
+                else "The desktop needs Qt. Run: python -m pip install -r requirements-gui.txt",
+                file=sys.stderr,
+            )
+            return 1
     if args.command == "legacy":
         # Keep old dependencies and installer import side effects out of normal
         # startup, catalog commands, and the GUI-independent core.

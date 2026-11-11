@@ -1,0 +1,2 @@
+# Qt Widgets and QtTest; optional for catalog commands and the core.
+PySide6-Essentials>=6.8,<7
