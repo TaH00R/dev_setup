@@ -1,142 +1,114 @@
 # Dev Setup
 
-Automated setup tool for programming languages, compilers, and development environments.
+One place to find and manage the tools you use for development.
 
-The current application is a legacy interactive CLI. Development of a
-GUI-independent Python core and a PySide6 desktop application is underway.
-Validated domain models and platform detection now live in root-level `models/`
-and `system/`; the desktop workflow is not implemented yet. See the
-[architecture](docs/architecture.md), [migration roadmap](docs/migration.md),
-and [development guide](docs/development.md). The current core record contract
-is documented in [domain models](docs/domain-models.md).
+Dev Setup is being built as a Python application with a PySide6 desktop interface
+for Windows, macOS, and Linux. The core can already search a curated catalog,
+build dependency-aware plans, require approval, run supported operations, and
+verify the result. **The desktop interface is still in development.**
 
-The root-level `catalog/` now supplies reviewed metadata, strict JSON loading,
-category browsing, and curated search. Run `python -m catalog validate` to check
-the bundled catalog without installing software. See the
-[catalog guide](docs/catalog.md) for its schema, platform scope, and source caveats.
+For now, you can explore the catalog from the terminal or use the Python service
+API. Installation workflows are enabled for APT on Ubuntu 24.04 and Homebrew on
+macOS. The remaining adapters have tested command builders, but still need
+inventory and transaction parsers before the application can use them end to end.
+See the [support matrix](docs/support-matrix.md) for the details.
 
-The new core also includes the safe command runner and WinGet, Scoop, Homebrew,
-and APT adapters. Their command previews, consent/elevation requirements, and
-current limits are documented in the [package-manager guide](docs/package-managers.md).
-They are not yet wired into the legacy CLI or a desktop installation workflow.
+## Try it
 
-Linux adapter coverage now also includes pacman, DNF, zypper, apk and Flatpak.
-The catalog contains 14 packages and 39 reviewed mappings. See the
-[support matrix](docs/support-matrix.md) for platform limits, unsupported
-operations and deferred backends.
+You'll need Python 3.10–3.14 and a copy of this repository. The catalog commands
+use only Python's standard library, so there's nothing to install with pip yet.
 
-Root-level `services/` now provides inventory observations, dependency/conflict
-planning, exact-plan consent, and verified operation execution. Native inspection
-and orchestration are enabled for APT and Homebrew; other backends need reviewed
-inventory/transaction parsers first. See the [operation service guide](docs/operations.md)
-for usage, consent requirements, and current limits. The GUI remains the next step.
+On Windows (PowerShell):
 
-![Alt Text](image.png)
-
-## Features
-
-- Windows and Linux support
-- Git Installer
-- VS Code Installer
-- GCC Installer
-- Python Installer
-- Cmake Installer
-- Java Installer
-- Node.js Installer
-- Docker Installer
-
-## Roadmap
-
-- Validated catalog and safe package-manager adapters.
-- Inventory, reviewable plans, explicit consent, and verified operations.
-- PySide6 desktop UI, hybrid discovery, runtime managers, and portable presets.
-- Tested Windows, Linux, and macOS distribution.
-
-## Installation & Getting Started
-
-### Prerequisites
-
-- Your OS/Distro's built in package manager (e.g. Winget on Windows and apt for debian based)
-- [**Python 3.10-3.14**](https://www.python.org/downloads/) (development target)
-- [**Pip**](https://pip.pypa.io/en/stable/installation/)
-- [**Git**](https://git-scm.com/install/)
-
-### Quick Start
-
-Clone this repository and run the setup script:
-
-For Windows
-
-```bash
-# Clone the repository
+```powershell
 git clone https://github.com/TaH00R/dev_setup.git
 cd dev_setup
-
-# Install required dependencies
-pip install -r requirements.txt
-
-# Start the interactive setup menu
-python main.py
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m app catalog validate
+.\.venv\Scripts\python.exe -m app catalog search git
 ```
 
-For Linux
+On macOS or Linux:
 
-```bash
-# Clone the repository
+```sh
 git clone https://github.com/TaH00R/dev_setup.git
 cd dev_setup
-
-# Install required dependencies
-pip install -r requirements.txt
-
-# Start the interactive setup menu
-python3 main.py
+python3 -m venv .venv
+.venv/bin/python -m app catalog validate
+.venv/bin/python -m app catalog search git
 ```
 
-## Usage
+Validation checks all 14 package definitions and their 39 reviewed platform
+mappings. Search shows each package's native identifier, backend, and source.
+These commands read local metadata and do not run package managers. A catalog
+mapping alone does not mean a package can be installed on your machine.
 
-When you run `python main.py`, you will be presented with an interactive command-line interface:
+Use `catalog search --category editors` to browse a category, or `--help` to see
+all commands. `python main.py` is also available as a launcher for the same app.
+
+## How the repository fits together
 
 ```text
-=== Dev Setup ===
-1. Install GCC
-2. Install VS Code
-3. Install Python
-4. Install Git
-5. Install Java
-6. Install CMake
-7. Install Node.js
-8. Install Docker
-9. Install Everything
-10. System Information
-0. Exit
-
-Enter your choice:
+app/                 Application entry points; future desktop UI
+  legacy/            Preserved installer menu and its older helpers
+models/              Package, inventory, plan, and operation records
+services/            Inventory, planning, consent, and execution
+  catalog/           Catalog loading, validation, and curated search
+package_managers/    Native adapters and their inspection code
+system/              Platform detection and the safe command runner
+catalog/             Reviewed JSON package definitions, grouped by category
+tests/
+  unit/              Core and adapter tests; older regressions in legacy/
+  catalog/           Schema, loader, search, and shipped metadata tests
+  integration/       Isolated import, launcher, runner, and fake-bridge checks
+  fixtures/          Shared synthetic test data
+resources/           Project assets
+docs/                Architecture, API guides, and platform support
 ```
 
-Select a package, use `10` for system information, or `0` to exit. Option `9`
-runs every installer. Legacy installation paths may refresh repositories or
-upgrade system packages on Linux. Their presence does not establish verified
-package availability or a complete consent/security flow for every platform;
-the new adapters will replace these paths incrementally.
+The core stays independent of Qt. Adapters own native commands; catalog files
+contain metadata rather than scripts. Plans expose the selected source, command,
+privileges, and expected effects before approval. Operations report failures and
+verify native inventory before declaring success.
 
-### Running Tests Locally
+## The older installer menu
 
-The unit suite covers mocked installers, system information/version detection,
-logging, error handling, CLI dispatch, and core import isolation. Install
-`requirements.txt` first, then run Python's built-in `unittest` framework:
+The original menu is preserved in `app/legacy/` while the desktop workflow is
+built. To open it, install its dependencies and choose it explicitly:
 
-```bash
-python -m unittest discover -s tests -v
+```sh
+python -m pip install -r requirements.txt
+python -m app legacy
 ```
 
-For formatting, linting, and type checks, install `requirements-dev.txt` and
-follow the [development guide](docs/development.md). Package operations in unit
-tests are mocked; real installation validation belongs in disposable systems.
+Use the Python executable from your virtual environment for these commands. The
+legacy menu uses the original installer paths, including Linux repository refresh
+and system upgrade behavior. It does not use the new planning and consent service.
+The new app does not load those installers during normal startup or catalog use.
 
-## Contributing
+## Working on Dev Setup
 
-Contributions are welcome!
-Check the Issues tab for beginner-friendly tasks.
+From an activated virtual environment:
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the open issues.
+```sh
+python -m pip install -r requirements-dev.txt
+python -W error::ResourceWarning -m unittest discover -s tests -t . -v
+python -m app catalog validate
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy
+```
+
+Tests mock package operations. Process tests use disposable Python programs and a
+fake Scoop script; they never install developer tools. Native installation,
+elevation, packaging, and clean-machine behavior still need disposable-system
+coverage. CI is configured for Python 3.10–3.14 on Windows, macOS, and Linux.
+
+The next milestone is the PySide6 desktop workflow, followed by live discovery,
+runtime managers, portable presets, and release packaging. More native inventory
+readers are also needed to enable the remaining backends.
+
+Read the [development guide](docs/development.md), [architecture](docs/architecture.md),
+and [operation service guide](docs/operations.md) before changing the core. For
+new package definitions, start with the [catalog guide](docs/catalog.md).
+Contribution details are in [CONTRIBUTING.md](CONTRIBUTING.md).

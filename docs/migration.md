@@ -2,18 +2,40 @@
 
 Preserve the existing CLI and installers until replacement behavior has tests.
 Do not connect an incomplete new service to the CLI or GUI merely to retire a
-legacy module. These are target destinations, not directories to scaffold now.
+legacy module. These are target responsibilities, not directories to scaffold now.
+
+## Current layout
+
+The repository cleanup moves code without removing legacy behavior:
+
+| Previous path | Current path |
+| --- | --- |
+| Interactive menu in `main.py` | `app/legacy/cli.py`; start it with `python -m app legacy` |
+| Root `system_info.py` and `installers/` | `app/legacy/system_info.py` and `app/legacy/installers/` |
+| Python modules mixed into `catalog/` | `services/catalog/`; `catalog/` now holds JSON data |
+| Flat `tests/test_*.py` | `tests/unit/`, `tests/catalog/`, `tests/integration/`, with shared `tests/fixtures/` |
+| Root `image.png` | `resources/legacy-menu.png` |
+
+`main.py` is now a small launcher for `app/main.py`, equivalent to `python -m app`.
+Default startup shows help; `catalog validate` and `catalog search` are read-only.
+The root-level core packages remain in place, with no nested `dev_setup/` package.
+The GUI milestone has not been marked complete by this reorganization.
+
+Older validation tables in the docs record commands and paths as they existed at
+the time. Use the current commands in [development](development.md) for this layout.
+
+## Replacement gates
 
 | Existing module | Future responsibility | Replacement gate |
 | --- | --- | --- |
-| `main.py` | Legacy CLI; later a service-backed CLI alongside `app/main.py` | Menu/dispatch tests pass; new workflow has explicit review and consent. |
-| `system_info.py` | Core platform detection and installed inventory | Tested normalization/distro selection and version detection, including unavailable tools. |
+| `app/legacy/cli.py` | Preserved menu alongside the new application entry point | Menu/dispatch tests pass; new installation workflow has explicit review and consent. |
+| `app/legacy/system_info.py` | Core platform detection and installed inventory | Tested normalization/distro selection and version detection, including unavailable tools. |
 | Package-manager installers for Git, Python, Java, GCC, CMake, Node.js, Docker, VS Code | Catalog records + package-manager adapters + operation services | Verified IDs per backend, exact-command mocks, explicit capability and consent tests, install verification. |
 | `gcc_installer.py`, `vscode_installer.py` direct-download variants | Prefer reviewed manager mappings; vendor adapter only where needed | Trusted origins, signature/checksum verification, explicit PATH/configuration consent, failure tests. |
-| `installers/errors.py` | Structured core errors, translated for CLI/GUI | Useful missing-manager, timeout, permission, network, non-zero-exit, and cancellation results. |
-| `installers/logger.py` | Structured events and sanitized persistent history | Redaction/privacy checks and migration tests; no passwords, secrets, or sensitive environment values. |
+| `app/legacy/installers/errors.py` | Structured core errors, translated for CLI/GUI | Useful missing-manager, timeout, permission, network, non-zero-exit, and cancellation results. |
+| `app/legacy/installers/logger.py` | Structured events and sanitized persistent history | Redaction/privacy checks and migration tests; no passwords, secrets, or sensitive environment values. |
 | Existing tests | Retained regression suite plus core/catalog/adapter/GUI suites | Tests remain deterministic; installation integration runs only in disposable environments. |
-| Existing Windows build workflow | Retained legacy executable build plus new distribution automation | Clean-machine packages tested on all supported platforms; signing and update paths verified. |
+| Windows build workflow | CLI preview with catalog/bridge data; later desktop distribution | Clean-machine packages tested on all supported platforms; signing and update paths verified. |
 
 ## Sequence and gates
 
@@ -45,3 +67,28 @@ this is not a complete consent system for every legacy entry point.
 The supported Python target and matrix live in `docs/development.md` and
 `.github/workflows/tests.yml`. The current executable workflow remains separate;
 it does not yet publish the future GUI application or prove release readiness.
+
+## Repository cleanup validation
+
+Local Windows/CPython 3.14.7 checks on 2026-11-11:
+
+| Exact command | Result |
+| --- | --- |
+| `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q` | 237 passed, including all 227 previous tests and 10 new application/launcher checks. |
+| `.\.venv\Scripts\python.exe -m app catalog validate` | 14 packages and 39 reviewed mappings valid. |
+| `.\.venv\Scripts\python.exe -m app catalog search git` | Curated Git/GitHub CLI results retain native IDs, sources and platform labels. |
+| `.\.venv\Scripts\python.exe main.py --help` | New launcher shows working commands. |
+| `.\.venv\Scripts\python.exe -m ruff check .` | Passed. |
+| `.\.venv\Scripts\python.exe -m ruff format --check .` | 69 files formatted. |
+| `.\.venv\Scripts\python.exe -m mypy` | No issues in 36 source files. |
+| `git diff --check` and `git diff --cached --check` | Passed. |
+
+Local documentation links were checked for missing targets. No native package
+installation or elevation was performed. The Windows CLI preview workflow now
+bundles the catalog and bridge and checks its executable, but PyInstaller is not
+installed locally, so the packaged executable and remote CI jobs were not run.
+The desktop UI, additional native inspectors and production release checks
+remain follow-up work. No new dependency was added for this reorganization.
+The existing build-only PyInstaller dependency is bounded to version 6; data
+arguments follow its [command reference](https://pyinstaller.org/en/stable/usage.html)
+and [runtime file layout](https://pyinstaller.org/en/stable/runtime-information.html).

@@ -22,10 +22,10 @@ in `system/`. Step 6 adds root-level `services/` for inventory, dependency/confl
 planning, exact-plan consent and verified operations. The GUI remains future work.
 Importing core modules must not
 discover software, start a process,
-load Qt, or import `main.py`, `system_info.py`, or `installers`.
+load Qt, or import `app`, the launcher, or `app/legacy/`.
 
-`catalog/` now holds strict JSON decoding/loading, reviewed package metadata,
-and a pure browsing/search service. It shares the root-level `models/` records
+`catalog/` contains only reviewed JSON package definitions. Python loading,
+validation, and browsing/search live in `services/catalog/`, sharing `models/`
 and does not invoke package managers or query registries. Catalog matching
 describes reviewed platform mappings. Adapters now expose availability and
 consent-bound native requests. APT and Homebrew have native inspection in
@@ -59,7 +59,14 @@ Persistent settings and sanitized history belong behind core persistence
 interfaces, not widget code. Runtime managers form a separate adapter family
 because project-local runtimes differ from system application installation.
 
-Legacy code retains its existing entry point during migration. Its procedural
+`app/main.py` exposes read-only catalog commands through `python -m app` and
+the small root `main.py` launcher. The desktop UI will be added under `app/`
+when implemented; there are no placeholder widget directories. The old menu,
+system information helper and installers live together under `app/legacy/`.
+`python -m app legacy` opts into that menu with lazy imports, preserving its
+regression coverage while keeping its dependencies out of core startup.
+
+The legacy procedural
 installation paths are not the template for new adapters. In particular,
 direct downloads, implicit system refresh/upgrade actions, PATH modification,
 unverified package mappings, and optimistic success messages require explicit

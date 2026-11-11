@@ -4,7 +4,6 @@ from dataclasses import replace
 from threading import Event
 from uuid import uuid4
 
-from catalog.service import CatalogService
 from models.catalog import Package
 from models.errors import ErrorCode, OperationError
 from models.inventory import Detection, Inventory
@@ -13,6 +12,7 @@ from models.planning import InstallPlan, OperationAction, PlanItem
 from models.platform import Platform
 from models.specs import InstallSpec
 from package_managers.base import AdapterError, BackendAction
+from services.catalog.service import CatalogService
 
 from .inventory import Inspector
 from .records import PackageRequest, PreparedItem, ReviewedPlan

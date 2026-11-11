@@ -1,5 +1,8 @@
 # Migration baseline
 
+This records the original repository before migration. The current paths and
+entry points are documented in the [migration map](migration.md#current-layout).
+
 The starting application is an interactive CLI in `main.py`. It dispatches eight
 installer classes and displays environment information from `system_info.py`.
 There is no GUI, core package, curated catalog, or shared operation runner yet.

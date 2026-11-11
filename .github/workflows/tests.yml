@@ -29,7 +29,11 @@ jobs:
       - name: Install legacy test dependencies
         run: python -m pip install -r requirements.txt
       - name: Run deterministic unit tests
-        run: python -W error::ResourceWarning -m unittest discover -s tests -v
+        run: python -W error::ResourceWarning -m unittest discover -s tests -t . -v
+      - name: Check application catalog commands
+        run: |
+          python -m app catalog validate
+          python -m app catalog search git
 
   quality:
     runs-on: ubuntu-latest
@@ -42,5 +46,5 @@ jobs:
       - run: python -m ruff check .
       - run: python -m ruff format --check .
       - run: python -m mypy
-      - run: python -m catalog validate
+      - run: python -m app catalog validate
       - run: git diff --check

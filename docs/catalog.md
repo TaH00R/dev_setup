@@ -1,7 +1,7 @@
 # Curated catalog contract (schema version 1)
 
-Catalog data and services live in root-level `catalog/`; no nested project
-directory is used. Each `catalog/<category>/<id>.json` contains one JSON object:
+Catalog data lives in root-level `catalog/`; loading, schema validation and search
+live in `services/catalog/`. Each `catalog/<category>/<id>.json` contains one JSON object:
 `schema_version` (the integer `1`) and `package` (an object). The standard-library
 decoder is the executable schema; no additional validation dependency is needed.
 Unknown fields are rejected at every level, including nested source, support,
@@ -156,11 +156,11 @@ metadata and build an exact plan before offering execution.
    cases for package-specific risks. Detection of a client executable alone is
    not proof of a server/product installation; service/native inventory checks
    remain necessary. Versioned executables need re-review when packages change.
-4. Run `python -m catalog validate`, the full unit suite, Ruff, mypy, and
+4. Run `python -m app catalog validate`, the full unit suite, Ruff, mypy, and
    `git diff --check`. Do not query registries or install packages in ordinary
    tests. Installation integration belongs in disposable systems.
 
-Use `python -m catalog validate --directory PATH` to validate another local
+Use `python -m app catalog validate --directory PATH` to validate another local
 catalog. The command reports a non-zero exit on failure, includes safe relative
 file context for invalid documents, and never starts a package operation.
 

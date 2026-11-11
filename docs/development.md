@@ -12,8 +12,8 @@ run `python -m pip install -r requirements-dev.txt`. On Windows activation is
 Run these commands from the repository root:
 
 ```sh
-python -m unittest discover -s tests -v
-python -m catalog validate
+python -W error::ResourceWarning -m unittest discover -s tests -t . -v
+python -m app catalog validate
 python -m ruff check .
 python -m ruff format --check .
 python -m mypy
@@ -22,12 +22,14 @@ git diff --check
 
 Use `python -m ruff format .` to format the configured files. Ruff supplies
 formatting, syntax checks, unused-import checks, and import ordering. Mypy checks
-the root-level `models/`, `system/`, `catalog/`, `package_managers/`, and `services/` packages strictly. Both are
+the application entry points and root-level `models/`, `system/`,
+`package_managers/`, and `services/` packages strictly. The older `app/legacy/`
+code is excluded from strict typing during migration. Both checkers are
 development-only dependencies. Their version ranges bound major changes;
 this baseline does not provide a dependency lock.
 
 Formatting/linting cover the new core, domain tests, the core import test, CLI
-regression tests, catalog service/loader/schema tests, and `system_info.py`.
+regression tests, catalog service/loader/schema tests, and `app/legacy/system_info.py`.
 Runner, adapter, Scoop bridge, inventory inspection and operation service tests
 are also in the formatting scope.
 Expand scope when migrating a legacy module; avoid a repository-wide formatting
@@ -47,6 +49,15 @@ policy. They never invoke installed Scoop or install software. See
 [package-manager boundaries](package-managers.md) before changing commands,
 approval handling, elevation, output observers, or the reviewed script bridge.
 
-The legacy CLI still starts with `python main.py`. Its actual installation paths
+Tests are grouped under `tests/unit/`, `tests/catalog/`, and `tests/integration/`;
+shared synthetic inputs live in `tests/fixtures/`. Integration here means isolated
+Python launchers, import checks, runner subprocesses and a fake Scoop bridge.
+These checks do not validate native installation on clean machines.
+
+The application starts with `python -m app` or `python main.py`. Use
+`python -m app catalog search git` for a read-only catalog search. The catalog
+data path is resolved relative to the source files, independently of the current
+working directory. The legacy CLI is now explicit: `python -m app legacy`.
+Its actual installation paths
 are not a security-complete implementation of the new architecture. Use the
 mocked regression suite to preserve behavior while replacing those paths.

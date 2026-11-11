@@ -13,8 +13,8 @@ legacy CLI until equivalent behavior is tested. The root-level `models` and
 `system` packages must
 import without Qt, the CLI, or legacy installer dependencies.
 
-The root-level `catalog/` package and its JSON entries follow the
-[catalog contribution guide](docs/catalog.md). Run `python -m catalog validate`
+Reviewed JSON entries in `catalog/` and Python code in `services/catalog/` follow the
+[catalog contribution guide](docs/catalog.md). Run `python -m app catalog validate`
 alongside the unit and quality checks. Verify each mapping against its source;
 record the review URL/date, tested architecture scope, platform constraints,
 and native service/system changes. Ordinary tests must remain offline.
@@ -31,7 +31,7 @@ Never include secrets, machine-specific configuration, or build artifacts.
 
 ## Beginner Friendly Tasks
 
-- Add reviewed catalog mappings as the catalog is introduced
+- Add reviewed catalog mappings for tools you use
 - Improve documentation
 - Add OS support
 - Add package detection

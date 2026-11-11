@@ -49,8 +49,8 @@ and a shared `CommandRunner`. For example, on a supported macOS host, this
 example only reads inventory/metadata and creates a review:
 
 ```python
-from catalog.loader import load_catalog
-from catalog.service import CatalogService
+from services.catalog.loader import load_catalog
+from services.catalog.service import CatalogService
 from package_managers.homebrew import Homebrew
 from package_managers.inspection import HomebrewInspector
 from services.inventory import InventoryService

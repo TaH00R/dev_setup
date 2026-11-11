@@ -1,4 +1,4 @@
-name: Build Dev Setup EXE
+name: Build Dev Setup CLI preview
 
 on:
   push:
@@ -25,18 +25,22 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller
+        pip install "pyinstaller>=6,<7"
 
     - name: Build EXE with PyInstaller
       run: |
-        pyinstaller --onefile main.py
-        echo "Build complete"
+        python -m PyInstaller --onefile --name dev-setup-cli --add-data "catalog:catalog" --add-data "package_managers/scoop_bridge.ps1:package_managers" main.py
+
+    - name: Check bundled catalog
+      run: |
+        .\dist\dev-setup-cli.exe catalog validate
+        .\dist\dev-setup-cli.exe catalog search git
 
     - name: Upload EXE artifact
       uses: actions/upload-artifact@v4
       with:
-        name: dev_setup-exe
-        path: dist/main.exe
+        name: dev-setup-cli-preview
+        path: dist/dev-setup-cli.exe
 
   release-upload:
     needs: build
@@ -48,11 +52,11 @@ jobs:
     - name: Download built EXE
       uses: actions/download-artifact@v4
       with:
-        name: dev_setup-exe
+        name: dev-setup-cli-preview
 
     - name: Upload EXE to Release
       uses: softprops/action-gh-release@v2
       with:
-        files: main.exe
+        files: dev-setup-cli.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
