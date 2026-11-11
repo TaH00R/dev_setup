@@ -93,7 +93,9 @@ selected-version verification will be implemented with the operation services.
 
 ## Bundled packages and platform matrix
 
-There are 10 entries and 26 reviewed mappings. Docker Desktop and Engine have
+Step 3 shipped 10 entries and 26 reviewed mappings. Step 5 expands this to
+14 entries and 39 mappings; see the current [support matrix](support-matrix.md).
+The table below records the initial step 3 mappings. Docker Desktop and Engine have
 separate IDs and will not be substituted across platforms.
 
 | Package ID | Windows x86_64 / WinGet | macOS ARM64 / Homebrew | Ubuntu 24.04 x86_64 / APT |
@@ -127,6 +129,12 @@ out. Docker Desktop's subscription/virtualization requirements are separate from
 Engine service/privilege changes. PostgreSQL native packages may initialize a
 cluster or start a service. These effects must appear in a future consent flow;
 the catalog neither runs initialization nor silently exposes a database.
+
+The later Flathub option is community packaging, with separate source identity
+and sandbox caveats. It does not add a Microsoft APT mapping. The four new
+catalog entries cover cloud tooling, Python environment tooling, Android
+platform tools and terminal search; their source URLs/dates and native IDs
+are stored alongside each reviewed mapping.
 
 Source review also consulted [Docker's Windows requirements and terms](https://docs.docker.com/desktop/setup/install/windows-install/),
 [Ubuntu PostgreSQL setup](https://ubuntu.com/server/docs/how-to/databases/install-postgresql/),

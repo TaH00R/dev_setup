@@ -4,7 +4,9 @@ from models.platform import OperatingSystem, Platform
 
 from .apt import APT
 from .base import Finder, PackageManager
+from .flatpak import Flatpak
 from .homebrew import Homebrew
+from .linux import APK, DNF, Pacman, Zypper
 from .scoop import Scoop
 from .winget import WinGet
 
@@ -15,7 +17,7 @@ def adapters_for(
     candidates: tuple[type[PackageManager], ...] = {
         OperatingSystem.WINDOWS: (WinGet, Scoop),
         OperatingSystem.MACOS: (Homebrew,),
-        OperatingSystem.LINUX: (APT,),
+        OperatingSystem.LINUX: (APT, Pacman, DNF, Zypper, APK, Flatpak),
     }.get(host.os, ())
     return tuple(
         adapter

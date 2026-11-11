@@ -30,6 +30,10 @@ class ShippedCatalogTests(unittest.TestCase):
                 "docker-desktop",
                 "docker-engine",
                 "postgresql",
+                "github-cli",
+                "uv",
+                "ripgrep",
+                "android-platform-tools",
             },
         )
         service = CatalogService(packages)
@@ -79,13 +83,19 @@ class ShippedCatalogTests(unittest.TestCase):
                     self.assertEqual(spec.source.kind, SourceKind.CURATED)
                     self.assertTrue(spec.source.url.startswith("https://"))
                     if spec.support.os == OperatingSystem.LINUX:
-                        self.assertTrue(spec.support.distribution_versions)
+                        self.assertTrue(
+                            spec.support.distribution_versions
+                            or spec.support.distributions
+                            in {("arch",), ("opensuse-tumbleweed",)}
+                        )
                     host = Platform(
                         spec.support.os,
                         spec.support.architectures[0],
                         LinuxDistribution(
                             spec.support.distributions[0],
-                            version=spec.support.distribution_versions[0],
+                            version=next(
+                                iter(spec.support.distribution_versions), None
+                            ),
                         )
                         if spec.support.os == OperatingSystem.LINUX
                         else None,
@@ -130,6 +140,24 @@ class ShippedCatalogTests(unittest.TestCase):
             LinuxDistribution("ubuntu", LinuxFamily.DEBIAN, version="24.04"),
         )
         match = service.search("vscode", target=linux)[0]
-        self.assertFalse(match.matching_specs)
-        self.assertIn("No reviewed mapping", match.caveat)
+        self.assertEqual(
+            tuple(spec.backend for spec in match.matching_specs), ("flatpak",)
+        )
+        self.assertFalse(any(spec.backend == "apt" for spec in match.matching_specs))
         self.assertIn("Microsoft", match.package.license)
+
+    def test_all_ten_catalog_groups_have_reviewed_starter_entries(self):
+        categories = {package.category for package in load_catalog()}
+        for group in (
+            {"languages", "runtimes"},
+            {"compilers", "build-tools"},
+            {"editors"},
+            {"databases"},
+            {"containers"},
+            {"cloud-devops"},
+            {"api-network"},
+            {"data-ml"},
+            {"mobile"},
+            {"utilities"},
+        ):
+            self.assertTrue(categories & group)

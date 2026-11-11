@@ -20,6 +20,11 @@ and APT adapters. Their command previews, consent/elevation requirements, and
 current limits are documented in the [package-manager guide](docs/package-managers.md).
 They are not yet wired into the legacy CLI or a desktop installation workflow.
 
+Linux adapter coverage now also includes pacman, DNF, zypper, apk and Flatpak.
+The catalog contains 14 packages and 39 reviewed mappings. See the
+[support matrix](docs/support-matrix.md) for platform limits, unsupported
+operations and deferred backends.
+
 ![Alt Text](image.png)
 
 ## Features

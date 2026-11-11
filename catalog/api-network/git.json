@@ -94,6 +94,134 @@
         "notes": [
           "Ubuntu distribution package; graphical clients and credential helpers are separate choices."
         ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "arch"
+          ],
+          "distribution_versions": []
+        },
+        "backend": "pacman",
+        "native_id": "git",
+        "source": {
+          "id": "arch-extra",
+          "name": "Arch Linux Extra",
+          "kind": "curated",
+          "trust": "official_repository",
+          "url": "https://archlinux.org/packages/"
+        },
+        "privilege": "required",
+        "review": {
+          "url": "https://archlinux.org/packages/extra/x86_64/git/",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Rolling Arch repository; install assumes an already fully updated system. No repository refresh or partial/system upgrade is performed."
+        ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "fedora"
+          ],
+          "distribution_versions": [
+            "43"
+          ]
+        },
+        "backend": "dnf",
+        "native_id": "git",
+        "source": {
+          "id": "fedora-43",
+          "name": "Fedora 43 repositories",
+          "kind": "curated",
+          "trust": "official_repository",
+          "url": "https://packages.fedoraproject.org/"
+        },
+        "privilege": "required",
+        "review": {
+          "url": "https://packages.fedoraproject.org/pkgs/git/git/fedora-43.html",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Fedora native Git bundle; package selection is restricted to the configured fedora and updates repositories."
+        ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "opensuse-tumbleweed"
+          ],
+          "distribution_versions": []
+        },
+        "backend": "zypper",
+        "native_id": "git-core",
+        "source": {
+          "id": "opensuse-tumbleweed-oss",
+          "name": "openSUSE Tumbleweed OSS",
+          "kind": "curated",
+          "trust": "official_repository",
+          "url": "https://download.opensuse.org/tumbleweed/repo/oss/"
+        },
+        "privilege": "required",
+        "review": {
+          "url": "https://api.opensuse.org/public/build/openSUSE:Factory/standard/x86_64/git",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Git command-line core; extra GUI/import interfaces are separate packages. The configured repo-oss alias must refer to the reviewed OSS repository."
+        ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "alpine"
+          ],
+          "distribution_versions": [
+            "3.22.0",
+            "3.22.1",
+            "3.22.2",
+            "3.22.3",
+            "3.22.4",
+            "3.22.5",
+            "3.22.6",
+            "3.22.7",
+            "3.22.8"
+          ]
+        },
+        "backend": "apk",
+        "native_id": "git",
+        "source": {
+          "id": "alpine-3.22-main",
+          "name": "Alpine 3.22 main",
+          "kind": "curated",
+          "trust": "official_repository",
+          "url": "https://dl-cdn.alpinelinux.org/alpine/v3.22/main"
+        },
+        "privilege": "required",
+        "review": {
+          "url": "https://pkgs.alpinelinux.org/package/v3.22/main/x86_64/git",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Reviewed v3.22 repository branch and released patch levels through 3.22.8. Only the selected repository is used; no APK self-update or system upgrade is requested."
+        ]
       }
     ],
     "detection": [

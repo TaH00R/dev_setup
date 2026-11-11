@@ -314,7 +314,10 @@ class AdapterTests(unittest.TestCase):
             fedora = replace(
                 self.linux, distribution=LinuxDistribution("fedora", LinuxFamily.FEDORA)
             )
-            self.assertEqual(adapters_for(fedora, find=self.find), ())
+            self.assertEqual(
+                tuple(adapter.id for adapter in adapters_for(fedora, find=self.find)),
+                ("dnf", "flatpak"),
+            )
             self.assertFalse(
                 WinGet(self.macos, find=self.find).availability().available
             )

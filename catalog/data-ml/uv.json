@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "uv",
+    "name": "uv",
+    "summary": "Python package and environment tooling; runtime management remains a separate adapter family.",
+    "category": "data-ml",
+    "homepage": "https://docs.astral.sh/uv/",
+    "documentation": "https://docs.astral.sh/uv/",
+    "license": "Apache-2.0 OR MIT",
+    "vendor": "Astral",
+    "tags": [
+      "python",
+      "tooling",
+      "environments"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "astral-sh.uv",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/a/astral-sh/uv/0.13.7/astral-sh.uv.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Installing uv does not create a project, install a Python runtime, or change an existing environment."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "uv",
+        "source": {
+          "id": "homebrew-core",
+          "name": "Homebrew core",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-core"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/formula/uv.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Installing uv does not create a project, install a Python runtime, or change an existing environment."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "uv",
+        "version_args": [
+          "--version"
+        ]
+      }
+    ]
+  }
+}

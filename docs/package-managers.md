@@ -5,6 +5,11 @@ Step 4 adds root-level `package_managers/`, `system/commands.py`, and
 or third-party packages. No dependency was added. Importing them does not
 probe the host, start processes, inspect package inventories, or use the network.
 
+Step 5 extends the same contract with pacman, DNF, zypper, apk and Flatpak.
+See the current [support matrix](support-matrix.md) for capabilities, source
+scope, deferred backends, and native-operation limitations. The four-adapter
+table below records the initial step 4 implementation.
+
 ## Adapter contract
 
 `PackageManager` exposes `availability()`, `capabilities`, `version()`,

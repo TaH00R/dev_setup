@@ -96,6 +96,7 @@ class DetectionSpec:
                 "podman",
                 "helm",
                 "kubectl",
+                "adb",
             }:
                 raise ValueError(
                     "detection requires one safe version flag or a reviewed subcommand"

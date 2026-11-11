@@ -64,6 +64,39 @@
         "notes": [
           "Homebrew cask for the Microsoft branded application; review macOS requirements and CLI-link changes."
         ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "ubuntu"
+          ],
+          "distribution_versions": [
+            "24.04"
+          ]
+        },
+        "backend": "flatpak",
+        "native_id": "com.visualstudio.code",
+        "source": {
+          "id": "flathub",
+          "name": "Flathub community packaging",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://flathub.org"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://github.com/flathub/com.visualstudio.code/blob/master/com.visualstudio.code.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Community-maintained Flathub packaging of the Microsoft proprietary binary; it is not the Microsoft APT repository.",
+          "The reviewed manifest requests host-filesystem, network, device and SSH-agent access. Inspect current sandbox permissions and runtime dependencies before approval.",
+          "Per-user stable branch only; the existing Flathub remote must already be configured. Use native inventory to verify this product; the host code command may be absent."
+        ]
       }
     ],
     "detection": [

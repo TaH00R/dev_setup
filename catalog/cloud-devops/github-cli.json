@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "github-cli",
+    "name": "GitHub CLI",
+    "summary": "GitHub command-line client for repositories and development workflows.",
+    "category": "cloud-devops",
+    "homepage": "https://cli.github.com/",
+    "documentation": "https://cli.github.com/manual/",
+    "license": "MIT",
+    "vendor": "GitHub",
+    "tags": [
+      "cloud",
+      "devops",
+      "git"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "GitHub.cli",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/g/GitHub/cli/2.103.3/GitHub.cli.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Authentication is a separate user action; account tokens and credentials must stay out of logs."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "gh",
+        "source": {
+          "id": "homebrew-core",
+          "name": "Homebrew core",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-core"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/formula/gh.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Authentication is a separate user action; account tokens and credentials must stay out of logs."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "gh",
+        "version_args": [
+          "--version"
+        ]
+      }
+    ]
+  }
+}

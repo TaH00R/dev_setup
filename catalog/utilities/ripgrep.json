@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "ripgrep",
+    "name": "ripgrep",
+    "summary": "Fast command-line text search for source trees.",
+    "category": "utilities",
+    "homepage": "https://github.com/BurntSushi/ripgrep",
+    "documentation": "https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md",
+    "license": "Unlicense OR MIT",
+    "vendor": "ripgrep contributors",
+    "tags": [
+      "search",
+      "terminal",
+      "productivity"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "BurntSushi.ripgrep.MSVC",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/b/BurntSushi/ripgrep/MSVC/15.2.0/BurntSushi.ripgrep.MSVC.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "The installed executable is rg; this package does not index or scan files automatically."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "ripgrep",
+        "source": {
+          "id": "homebrew-core",
+          "name": "Homebrew core",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-core"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/formula/ripgrep.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "The installed executable is rg; this package does not index or scan files automatically."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "rg",
+        "version_args": [
+          "--version"
+        ]
+      }
+    ]
+  }
+}

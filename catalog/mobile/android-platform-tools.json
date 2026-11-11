@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "android-platform-tools",
+    "name": "Android SDK Platform-Tools",
+    "summary": "ADB and Fastboot tools for Android development and device diagnostics.",
+    "category": "mobile",
+    "homepage": "https://developer.android.com/tools/releases/platform-tools",
+    "documentation": "https://developer.android.com/tools/adb",
+    "license": "LicenseRef-Android-SDK-License",
+    "vendor": "Google",
+    "tags": [
+      "android",
+      "mobile",
+      "sdk"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "Google.PlatformTools",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/g/Google/PlatformTools/37.0.3/Google.PlatformTools.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Includes platform tools, not a complete Android SDK or Android Studio. Review the vendor SDK terms before approving.",
+          "Version detection is read-only; no device connection, debugging-server startup, flashing or USB/udev configuration is requested."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "android-platform-tools",
+        "source": {
+          "id": "homebrew-cask",
+          "name": "Homebrew cask",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-cask"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/cask/android-platform-tools.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Includes platform tools, not a complete Android SDK or Android Studio. Review the vendor SDK terms before approving.",
+          "Version detection is read-only; no device connection, debugging-server startup, flashing or USB/udev configuration is requested."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "adb",
+        "version_args": [
+          "version"
+        ]
+      }
+    ]
+  }
+}
