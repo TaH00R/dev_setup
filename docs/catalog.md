@@ -42,3 +42,17 @@ Categories: languages, runtimes, compilers, build-tools, editors, databases,
 containers, cloud-devops, api-network, data-ml, mobile, utilities. Add categories
 by a reviewed schema change. Adding a backend requires its reviewed schema
 mapping and eventually an adapter; catalog presence does not implement one.
+
+## File and catalog validation
+
+`load_catalog()` loads the bundled directory by default; pass a `Path` to load
+another local catalog. Loading performs no network requests or package-manager
+commands. It returns an immutable, ID-sorted tuple and fails closed on any
+invalid document. Missing/empty catalogs are errors rather than silent success.
+
+Documents must be UTF-8 JSON, at most 256 KiB, with no duplicate object keys or
+non-finite numbers. Symlink entries are rejected, and documents must live exactly
+at `<category>/<id>.json`, matching their own metadata. Whole-catalog validation
+rejects duplicate package IDs/native mappings, inconsistent shared source IDs,
+missing detection rules for mapped packages, and unresolved dependency/conflict
+references. Dependency resolution/cycle handling remains the planner's job.
