@@ -39,3 +39,26 @@ repository defects. No installation commands were intentionally executed.
 
 Each roadmap step uses eight focused commits. Passing local checks establish a
 development baseline, not production readiness or clean-machine install support.
+
+## Step 1 completion evidence
+
+Validated on 2026-11-11 on Windows with CPython 3.14.7 in the local `.venv`:
+
+| Exact command | Result |
+| --- | --- |
+| `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -v` | 69 tests passed, including preserved legacy cases, CLI dispatch, consent, version failure paths, and isolated core import. |
+| `.\.venv\Scripts\python.exe -m ruff check .` | All checks passed. |
+| `.\.venv\Scripts\python.exe -m ruff format --check .` | Four files already formatted. |
+| `.\.venv\Scripts\python.exe -m mypy` | No issues in the initial core source file. |
+| `git diff --check` | Passed. |
+
+Runtime and development dependencies were installed in the ignored virtual
+environment. The inventory mismatch and missing version API were repaired;
+missing-manager hints now identify WinGet, and Git/Java/GCC honor declined Linux
+update consent. Tests select the intended OS explicitly rather than inheriting
+the host. Logger resources are closed before handlers are replaced.
+
+The core is an import boundary only; domain models begin in step 2. No GUI or new
+package installation service is implemented. The cross-platform CI matrix has
+been added but has not run remotely during this task. No real tool installation,
+package upgrade, executable build, or clean-machine verification was performed.
