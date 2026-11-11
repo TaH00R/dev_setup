@@ -56,3 +56,20 @@ at `<category>/<id>.json`, matching their own metadata. Whole-catalog validation
 rejects duplicate package IDs/native mappings, inconsistent shared source IDs,
 missing detection rules for mapped packages, and unresolved dependency/conflict
 references. Dependency resolution/cycle handling remains the planner's job.
+
+## Browsing and search
+
+`CatalogService(load_catalog())` provides `categories`, `get(id)`, `browse()`,
+and `search(query, category=None, target=None, mapped_only=False)`. Searches are
+case-insensitive, normalize whitespace, and require all query terms to match
+some combination of ID, name, summary, category, tags, or native identifiers.
+Exact IDs, names, and native IDs rank ahead of prefix/tag/general matches;
+ties sort by name then stable ID. Results are deterministic and retain source
+identity through their package and matched install specs.
+
+Unsupported results remain visible with a reason. `mapped_only=True` filters
+to reviewed mappings for an explicit target platform. No target means no
+assertion of compatibility. A matching spec is not proof of installability:
+backend availability, native OS/version requirements, privileges, and consent
+still need future adapters/planning. These services never detect managers or
+perform live package search; hybrid discovery comes later.
