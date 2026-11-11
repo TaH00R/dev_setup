@@ -10,6 +10,11 @@ and `system/`; the desktop workflow is not implemented yet. See the
 and [development guide](docs/development.md). The current core record contract
 is documented in [domain models](docs/domain-models.md).
 
+The root-level `catalog/` now supplies reviewed metadata, strict JSON loading,
+category browsing, and curated search. Run `python -m catalog validate` to check
+the bundled catalog without installing software. See the
+[catalog guide](docs/catalog.md) for its schema, platform scope, and source caveats.
+
 ![Alt Text](image.png)
 
 ## Features

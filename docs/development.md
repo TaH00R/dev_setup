@@ -13,6 +13,7 @@ Run these commands from the repository root:
 
 ```sh
 python -m unittest discover -s tests -v
+python -m catalog validate
 python -m ruff check .
 python -m ruff format --check .
 python -m mypy
@@ -21,13 +22,14 @@ git diff --check
 
 Use `python -m ruff format .` to format the configured files. Ruff supplies
 formatting, syntax checks, unused-import checks, and import ordering. Mypy checks
-the root-level `models/` and `system/` core packages strictly. Both are
+the root-level `models/`, `system/`, and `catalog/` core packages strictly. Both are
 development-only dependencies. Their version ranges bound major changes;
 this baseline does not provide a dependency lock.
 
 Formatting/linting cover the new core, domain tests, the core import test, CLI
-regression tests, and `system_info.py`. Expand scope when migrating a legacy module; avoid a
-repository-wide formatting rewrite. All new core APIs need annotations. Keep
+regression tests, catalog service/loader/schema tests, and `system_info.py`.
+Expand scope when migrating a legacy module; avoid a repository-wide formatting
+rewrite. All new core APIs need annotations. Keep
 domain rules outside Qt, OS branches inside adapters, and metadata declarative.
 
 Ordinary tests must mock package operations and network downloads. Never install

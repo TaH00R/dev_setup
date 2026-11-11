@@ -15,6 +15,35 @@ from models.platform import (
 
 
 class ShippedCatalogTests(unittest.TestCase):
+    def test_initial_package_set_and_platform_limits(self):
+        packages = load_catalog()
+        self.assertEqual(
+            {package.id for package in packages},
+            {
+                "git",
+                "python",
+                "nodejs",
+                "java",
+                "gcc",
+                "cmake",
+                "vscode",
+                "docker-desktop",
+                "docker-engine",
+                "postgresql",
+            },
+        )
+        service = CatalogService(packages)
+        for distro, version in [("ubuntu", "22.04"), ("debian", "24.04")]:
+            host = Platform(
+                OperatingSystem.LINUX,
+                Architecture.X86_64,
+                LinuxDistribution(distro, LinuxFamily.DEBIAN, version=version),
+            )
+            with self.subTest(distro=distro, version=version):
+                self.assertFalse(service.browse(target=host, mapped_only=True))
+        intel_mac = Platform(OperatingSystem.MACOS, Architecture.X86_64)
+        self.assertFalse(service.browse(target=intel_mac, mapped_only=True))
+
     def test_docker_products_and_database_side_effects_are_explicit(self):
         service = CatalogService(load_catalog())
         desktop = service.get("docker-desktop")

@@ -27,12 +27,13 @@ sys.meta_path.insert(0, RejectExternalLayers())
 sys.path.insert(0, sys.argv[1])
 
 def deny_process(event, args):
-    if event in {'subprocess.Popen', 'os.system', 'os.posix_spawn'}:
-        raise AssertionError('Core import started a process')
+    if event in {'subprocess.Popen', 'os.system', 'os.posix_spawn',
+                 'socket.connect', 'socket.getaddrinfo'}:
+        raise AssertionError('Core import started a process or network request')
 
 sys.addaudithook(deny_process)
 from pathlib import Path
-for name in ('models', 'system'):
+for name in ('models', 'system', 'catalog'):
     package = importlib.import_module(name)
     assert Path(package.__file__) == Path(sys.argv[1]) / name / '__init__.py'
     for module in pkgutil.walk_packages(package.__path__, package.__name__ + '.'):

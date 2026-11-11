@@ -1,12 +1,16 @@
 """Local catalog validation tests use temporary directories and synthetic IDs."""
 
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from test_catalog_schema import example_document
 
+from catalog.__main__ import main
 from catalog.loader import (
     MAX_DOCUMENT_BYTES,
     load_catalog,
@@ -17,6 +21,30 @@ from catalog.schema import CatalogValidationError, decode_package
 
 
 class CatalogLoaderTests(unittest.TestCase):
+    def test_validation_command_has_useful_exit_status_and_no_package_operations(self):
+        output, errors = io.StringIO(), io.StringIO()
+        with (
+            redirect_stdout(output),
+            redirect_stderr(errors),
+            mock.patch(
+                "subprocess.Popen",
+                side_effect=AssertionError("process execution forbidden"),
+            ),
+        ):
+            self.assertEqual(main(["validate", "--directory", str(self.root)]), 0)
+            self.assertEqual(
+                main(["validate", "--directory", str(self.root / "missing")]), 1
+            )
+        self.assertIn("Validated 1 packages", output.getvalue())
+        self.assertIn("directory does not exist", errors.getvalue())
+
+    def test_file_errors_identify_safe_relative_path(self):
+        self.path.write_text("{bad json", encoding="utf-8")
+        with self.assertRaises(CatalogValidationError) as caught:
+            load_catalog(self.root)
+        self.assertIn("utilities/example.tool.json", str(caught.exception))
+        self.assertNotIn(str(self.root), str(caught.exception))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

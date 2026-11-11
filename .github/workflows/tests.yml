@@ -42,4 +42,5 @@ jobs:
       - run: python -m ruff check .
       - run: python -m ruff format --check .
       - run: python -m mypy
+      - run: python -m catalog validate
       - run: git diff --check

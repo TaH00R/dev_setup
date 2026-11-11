@@ -90,3 +90,90 @@ use versioned executables; the Apple `gcc` alias is not treated as GNU GCC.
 The reviewed rolling Homebrew GCC detection is `gcc-16` and needs re-review
 when the formula's major version changes. Package-manager inventory and
 selected-version verification will be implemented with the operation services.
+
+## Bundled packages and platform matrix
+
+There are 10 entries and 26 reviewed mappings. Docker Desktop and Engine have
+separate IDs and will not be substituted across platforms.
+
+| Package ID | Windows x86_64 / WinGet | macOS ARM64 / Homebrew | Ubuntu 24.04 x86_64 / APT |
+| --- | --- | --- | --- |
+| git | Git.Git | git (formula) | git |
+| python | Python.Python.3.14 | python@3.14 (formula) | python3 |
+| nodejs | OpenJS.NodeJS.LTS | node (formula) | nodejs |
+| java | Microsoft.OpenJDK.21 | openjdk@21 (formula) | openjdk-21-jdk |
+| gcc | BrechtSanders.WinLibs.POSIX.UCRT | gcc (formula) | build-essential |
+| cmake | Kitware.CMake | cmake (formula) | cmake |
+| vscode | Microsoft.VisualStudioCode | visual-studio-code (cask) | No reviewed mapping |
+| docker-desktop | Docker.DockerDesktop | docker-desktop (cask) | No reviewed mapping |
+| docker-engine | No reviewed mapping | No reviewed mapping | docker.io |
+| postgresql | PostgreSQL.PostgreSQL.17 | postgresql@17 (formula) | postgresql |
+
+Every entry links the exact manifest/API/package page in `install_specs.review`.
+WinGet and Homebrew metadata are community-maintained; Ubuntu distribution
+repositories are official distribution sources. Neither label implies that a
+package is vendor-authored. A complete real document is
+[Git's entry](../catalog/api-network/git.json).
+
+These are reviewed identity/architecture mappings, not a declaration that every
+OS release supports installation. Intel macOS, other CPU architectures, Linux
+distributions/releases beyond Ubuntu 24.04, and other backends are intentionally
+unmapped until reviewed. Native OS-version requirements remain caveats for the
+future planner to check. Homebrew formula versus cask provenance stays explicit
+so adapters can choose the correct native operation rather than guessing.
+
+VS Code's proprietary binary license and external Linux repository are called
+out. Docker Desktop's subscription/virtualization requirements are separate from
+Engine service/privilege changes. PostgreSQL native packages may initialize a
+cluster or start a service. These effects must appear in a future consent flow;
+the catalog neither runs initialization nor silently exposes a database.
+
+Source review also consulted [Docker's Windows requirements and terms](https://docs.docker.com/desktop/setup/install/windows-install/),
+[Ubuntu PostgreSQL setup](https://ubuntu.com/server/docs/how-to/databases/install-postgresql/),
+and [Homebrew PostgreSQL service/cluster notes](https://formulae.brew.sh/formula/postgresql@17).
+Versions and native side effects can change; adapters must refresh source
+metadata and build an exact plan before offering execution.
+
+## Contribution workflow
+
+1. Inspect the source's exact package ID, distribution/release, architecture,
+   licensing, dependencies, and native service/environment changes. Prefer
+   package-manager manifests, official formula/cask APIs, and distribution
+   package pages. Do not infer identifiers from a different OS or distro.
+2. Add or update `<category>/<id>.json` using the field reference above. Keep
+   architecture/release coverage narrow, record evidence URL/date for every
+   mapping, and distinguish source trust from curated origin. Explain known
+   gaps, version differences, native dependencies, and restart/size caveats.
+3. Add detection coverage for the mapped platforms, and add offline regression
+   cases for package-specific risks. Detection of a client executable alone is
+   not proof of a server/product installation; service/native inventory checks
+   remain necessary. Versioned executables need re-review when packages change.
+4. Run `python -m catalog validate`, the full unit suite, Ruff, mypy, and
+   `git diff --check`. Do not query registries or install packages in ordinary
+   tests. Installation integration belongs in disposable systems.
+
+Use `python -m catalog validate --directory PATH` to validate another local
+catalog. The command reports a non-zero exit on failure, includes safe relative
+file context for invalid documents, and never starts a package operation.
+
+## Step 3 validation evidence
+
+Validated locally on Windows/CPython 3.14.7 on 2026-11-11:
+
+| Exact command | Result |
+| --- | --- |
+| `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -v` | 138 passed, including 25 catalog tests and all legacy/core regressions. |
+| `.\.venv\Scripts\python.exe -m catalog validate` | 10 packages, 26 reviewed mappings validated. |
+| `.\.venv\Scripts\python.exe -m ruff check .` | All checks passed. |
+| `.\.venv\Scripts\python.exe -m ruff format --check .` | 28 files already formatted. |
+| `.\.venv\Scripts\python.exe -m mypy` | No issues in 16 core/catalog source files. |
+| `git diff --check` | Passed. |
+
+The isolated-import regression now imports every models/system/catalog module
+without site packages and rejects legacy/GUI dependencies, processes, and network
+requests. Catalog tests use local documents and synthetic fixtures, not live
+registries. Source verification was a separate manual read-only review.
+No package installation, native package-manager command, or clean-machine test
+was performed. Remote Windows/macOS/Linux CI has not run during this local task.
+Adapters, operation planning/execution, live search, and GUI integration remain
+future steps. No new dependency was introduced for catalog validation.

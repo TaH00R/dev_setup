@@ -3,10 +3,11 @@
 import json
 from pathlib import Path
 
+from models._validation import identifier
 from models.catalog import Package
 from models.package import PackageSource
 
-from .schema import CatalogValidationError, decode_package
+from .schema import CATEGORIES, CatalogValidationError, decode_package
 
 MAX_DOCUMENT_BYTES = 262144
 
@@ -101,7 +102,20 @@ def load_catalog(root: Path | None = None) -> tuple[Package, ...]:
                 raise CatalogValidationError(
                     "catalog: documents must be category/id.json"
                 )
-            package = load_package(path)
+            try:
+                identifier(path.stem, "catalog filename")
+            except ValueError as error:
+                raise CatalogValidationError(
+                    "catalog: filename must be a stable package ID"
+                ) from error
+            if relative.parent.name not in CATEGORIES:
+                raise CatalogValidationError("catalog: unknown category directory")
+            try:
+                package = load_package(path)
+            except CatalogValidationError as error:
+                raise CatalogValidationError(
+                    f"{relative.as_posix()}: {error}"
+                ) from error
             if relative.parent.name != package.category or path.stem != package.id:
                 raise CatalogValidationError(
                     "catalog: path must match package category and ID"

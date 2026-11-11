@@ -38,9 +38,15 @@ class CatalogService:
         )
 
     def browse(
-        self, *, category: str | None = None, target: Platform | None = None
+        self,
+        *,
+        category: str | None = None,
+        target: Platform | None = None,
+        mapped_only: bool = False,
     ) -> tuple[CatalogMatch, ...]:
-        return self.search("", category=category, target=target)
+        return self.search(
+            "", category=category, target=target, mapped_only=mapped_only
+        )
 
     def search(
         self,

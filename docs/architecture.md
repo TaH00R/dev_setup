@@ -21,6 +21,12 @@ adapters, and the GUI remain future work. Importing core modules must not
 discover software, start a process,
 load Qt, or import `main.py`, `system_info.py`, or `installers`.
 
+`catalog/` now holds strict JSON decoding/loading, reviewed package metadata,
+and a pure browsing/search service. It shares the root-level `models/` records
+and does not invoke package managers or query registries. Catalog matching
+describes reviewed platform mappings; actual backend availability and execution
+remain future adapter/planner responsibilities.
+
 Widgets render state and send user intent to services. Services build plans and
 coordinate operations against explicit adapter capabilities. Adapters validate
 native identifiers/options and construct argument arrays. The runner will use

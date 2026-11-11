@@ -13,6 +13,12 @@ legacy CLI until equivalent behavior is tested. The root-level `models` and
 `system` packages must
 import without Qt, the CLI, or legacy installer dependencies.
 
+The root-level `catalog/` package and its JSON entries follow the
+[catalog contribution guide](docs/catalog.md). Run `python -m catalog validate`
+alongside the unit and quality checks. Verify each mapping against its source;
+record the review URL/date, tested architecture scope, platform constraints,
+and native service/system changes. Ordinary tests must remain offline.
+
 The baseline targets Python 3.10-3.14. Run the unit suite, Ruff lint/format checks,
 mypy, and `git diff --check` using the commands in the development guide. Report
 the exact checks run and any limitations in your pull request. CI covers the
