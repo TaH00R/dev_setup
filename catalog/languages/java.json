@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "java",
+    "name": "OpenJDK 21",
+    "summary": "Java Development Kit 21 with vendor and packaging differences shown per source.",
+    "category": "languages",
+    "homepage": "https://openjdk.org/projects/jdk/21/",
+    "documentation": "https://dev.java/learn/",
+    "license": "GPL-2.0-only WITH Classpath-exception-2.0",
+    "vendor": "OpenJDK contributors",
+    "tags": [
+      "java",
+      "jvm",
+      "jdk"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "Microsoft.OpenJDK.21",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/m/Microsoft/OpenJDK/21/21.0.13.21/Microsoft.OpenJDK.21.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Microsoft Build of OpenJDK 21; review installer environment integration."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "openjdk@21",
+        "source": {
+          "id": "homebrew-core",
+          "name": "Homebrew core",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-core"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/formula/openjdk@21.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Keg-only JDK; review JAVA_HOME and system Java-wrapper integration before use. No symlink or shell edit is performed by Dev Setup."
+        ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "ubuntu"
+          ],
+          "distribution_versions": [
+            "24.04"
+          ]
+        },
+        "backend": "apt",
+        "native_id": "openjdk-21-jdk",
+        "source": {
+          "id": "ubuntu-noble",
+          "name": "Ubuntu 24.04 repositories",
+          "kind": "curated",
+          "trust": "official_repository",
+          "url": "https://packages.ubuntu.com/noble/"
+        },
+        "privilege": "required",
+        "review": {
+          "url": "https://packages.ubuntu.com/noble/openjdk-21-jdk",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Full JDK including native dependencies; review package size before installation."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "java",
+        "version_args": [
+          "-version"
+        ]
+      }
+    ],
+    "environment_guidance": [
+      "JAVA_HOME and PATH guidance must be reviewed and confirmed separately; executable detection alone does not prove JDK major version or vendor."
+    ]
+  }
+}

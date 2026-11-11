@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "gcc",
+    "name": "GCC C/C++ toolchain",
+    "summary": "GNU C and C++ compilers; bundled build tools and binary names depend on the source.",
+    "category": "compilers",
+    "homepage": "https://gcc.gnu.org/",
+    "documentation": "https://gcc.gnu.org/onlinedocs/",
+    "license": "GPL-3.0-or-later WITH GCC-exception-3.1",
+    "vendor": "GNU Project",
+    "tags": [
+      "c",
+      "cpp",
+      "compiler",
+      "gcc"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "BrechtSanders.WinLibs.POSIX.UCRT",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/b/BrechtSanders/WinLibs/POSIX/UCRT/16.2.0-14.0.0-r3/BrechtSanders.WinLibs.POSIX.UCRT.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "WinLibs MinGW-w64 GCC distribution for Windows; review extraction location and PATH guidance. Make is not assumed to be included."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "gcc",
+        "source": {
+          "id": "homebrew-core",
+          "name": "Homebrew core",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-core"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/formula/gcc.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "GNU compilers have versioned binary names; macOS gcc may instead resolve to Apple Clang. Review the selected formula version before verification.",
+          "The reviewed formula exposes gcc-16; re-review this detection rule when the rolling formula changes major version."
+        ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "ubuntu"
+          ],
+          "distribution_versions": [
+            "24.04"
+          ]
+        },
+        "backend": "apt",
+        "native_id": "build-essential",
+        "source": {
+          "id": "ubuntu-noble",
+          "name": "Ubuntu 24.04 repositories",
+          "kind": "curated",
+          "trust": "official_repository",
+          "url": "https://packages.ubuntu.com/noble/"
+        },
+        "privilege": "required",
+        "review": {
+          "url": "https://packages.ubuntu.com/noble/build-essential",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Ubuntu build-essential bundle includes GCC, G++, Make and development headers."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "gcc",
+        "version_args": [
+          "--version"
+        ],
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      },
+      {
+        "executable": "g++",
+        "version_args": [
+          "--version"
+        ],
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "ubuntu"
+          ],
+          "distribution_versions": [
+            "24.04"
+          ]
+        }
+      },
+      {
+        "executable": "gcc-16",
+        "version_args": [
+          "--version"
+        ],
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        }
+      }
+    ],
+    "environment_guidance": [
+      "On macOS use package-manager inventory and the formula-reported versioned GNU executable; the unversioned gcc command is not a trustworthy GNU compiler detector."
+    ]
+  }
+}

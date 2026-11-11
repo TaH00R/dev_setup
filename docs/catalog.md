@@ -73,3 +73,20 @@ assertion of compatibility. A matching spec is not proof of installability:
 backend availability, native OS/version requirements, privileges, and consent
 still need future adapters/planning. These services never detect managers or
 perform live package search; hybrid discovery comes later.
+
+## Initial review scope
+
+Language/runtime/compiler entries start with Python 3, Node.js, OpenJDK 21,
+and the GNU C/C++ toolchain. Mappings record exact source evidence URLs and
+review dates. WinGet x64 manifests, Homebrew ARM64 formula metadata, and
+Ubuntu 24.04 amd64 package pages were checked manually; automated tests are
+offline and validate the saved contracts rather than re-querying registries.
+No real installation has been performed.
+
+Native versions, included tooling, and environment integration differ by
+source. Node is a runtime and npm is tooling; an Ubuntu Python mapping is
+release-native rather than a promise of Python 3.14. GNU compilers on macOS
+use versioned executables; the Apple `gcc` alias is not treated as GNU GCC.
+The reviewed rolling Homebrew GCC detection is `gcc-16` and needs re-review
+when the formula's major version changes. Package-manager inventory and
+selected-version verification will be implemented with the operation services.

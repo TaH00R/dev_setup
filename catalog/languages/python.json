@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "python",
+    "name": "Python 3",
+    "summary": "Python language runtime; native versions differ by source.",
+    "category": "languages",
+    "homepage": "https://www.python.org/",
+    "documentation": "https://docs.python.org/3/",
+    "license": "Python-2.0",
+    "vendor": "Python Software Foundation",
+    "tags": [
+      "python",
+      "runtime"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "Python.Python.3.14",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/p/Python/Python/3/14/3.14.10/Python.Python.3.14.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Python 3.14 distribution; review installer PATH and launcher changes."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "python@3.14",
+        "source": {
+          "id": "homebrew-core",
+          "name": "Homebrew core",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-core"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/formula/python@3.14.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Versioned executable is python3.14; do not replace the system Python."
+        ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "ubuntu"
+          ],
+          "distribution_versions": [
+            "24.04"
+          ]
+        },
+        "backend": "apt",
+        "native_id": "python3",
+        "source": {
+          "id": "ubuntu-noble",
+          "name": "Ubuntu 24.04 repositories",
+          "kind": "curated",
+          "trust": "official_repository",
+          "url": "https://packages.ubuntu.com/noble/"
+        },
+        "privilege": "required",
+        "review": {
+          "url": "https://packages.ubuntu.com/noble/python3",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Ubuntu release-default Python 3; this is not a request for Python 3.14. Pip and virtual-environment tooling are separate packages."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "python",
+        "version_args": [
+          "--version"
+        ],
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        }
+      },
+      {
+        "executable": "python3.14",
+        "version_args": [
+          "--version"
+        ],
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        }
+      },
+      {
+        "executable": "python3",
+        "version_args": [
+          "--version"
+        ],
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "ubuntu"
+          ],
+          "distribution_versions": [
+            "24.04"
+          ]
+        }
+      }
+    ],
+    "environment_guidance": []
+  }
+}
