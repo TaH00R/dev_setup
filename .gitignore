@@ -28,3 +28,7 @@ build/
 
 # Environment Variables
 .env
+
+# Local development instructions and progress tracker
+/[Aa][Gg][Ee][Nn][Tt][Ss].md
+/steps-remaining.md
