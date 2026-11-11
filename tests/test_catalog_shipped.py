@@ -15,6 +15,27 @@ from models.platform import (
 
 
 class ShippedCatalogTests(unittest.TestCase):
+    def test_docker_products_and_database_side_effects_are_explicit(self):
+        service = CatalogService(load_catalog())
+        desktop = service.get("docker-desktop")
+        engine = service.get("docker-engine")
+        self.assertNotEqual(desktop.id, engine.id)
+        self.assertEqual(
+            {spec.support.os for spec in engine.install_specs}, {OperatingSystem.LINUX}
+        )
+        self.assertNotIn(
+            OperatingSystem.LINUX, {spec.support.os for spec in desktop.install_specs}
+        )
+        notes = " ".join(note for spec in desktop.install_specs for note in spec.notes)
+        self.assertIn("subscription", notes)
+        self.assertIn("virtualization", notes)
+        postgres = service.get("postgresql")
+        for spec in postgres.install_specs:
+            with self.subTest(backend=spec.backend):
+                self.assertTrue(
+                    any("data" in note or "cluster" in note for note in spec.notes)
+                )
+
     def test_all_entries_have_reviewed_mappings_and_safe_detection(self):
         packages = load_catalog()
         self.assertTrue(packages)

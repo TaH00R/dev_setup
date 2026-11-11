@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "postgresql",
+    "name": "PostgreSQL",
+    "summary": "Relational database server; review data directories, service initialization, ports and credentials.",
+    "category": "databases",
+    "homepage": "https://www.postgresql.org/",
+    "documentation": "https://www.postgresql.org/docs/",
+    "license": "PostgreSQL",
+    "vendor": "PostgreSQL Global Development Group",
+    "tags": ["postgresql", "database", "sql", "server"],
+    "install_specs": [
+      {
+        "support": {"os": "windows", "architectures": ["x86_64"]},
+        "backend": "winget",
+        "native_id": "PostgreSQL.PostgreSQL.17",
+        "source": {"id": "winget", "name": "WinGet community manifests", "kind": "curated", "trust": "community_repository", "url": "https://github.com/microsoft/winget-pkgs"},
+        "privilege": "native_prompt",
+        "review": {"url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/p/PostgreSQL/PostgreSQL/17/17.11-5/PostgreSQL.PostgreSQL.17.installer.yaml", "checked_on": "2026-11-11"},
+        "notes": [
+          "PostgreSQL 17 Windows installer; review selected components, database service, data directory and port.",
+          "Credentials belong in native installer prompts and must be excluded from Dev Setup logs and persistence."
+        ]
+      },
+      {
+        "support": {"os": "macos", "architectures": ["arm64"]},
+        "backend": "homebrew",
+        "native_id": "postgresql@17",
+        "source": {"id": "homebrew-core", "name": "Homebrew core", "kind": "curated", "trust": "community_repository", "url": "https://github.com/Homebrew/homebrew-core"},
+        "privilege": "none",
+        "review": {"url": "https://formulae.brew.sh/api/formula/postgresql@17.json", "checked_on": "2026-11-11"},
+        "notes": [
+          "PostgreSQL 17 formula; native post-install behavior can initialize a default database cluster. Review the Homebrew data directory before approval.",
+          "Review service startup and PATH guidance separately; the psql client alone does not verify server configuration."
+        ]
+      },
+      {
+        "support": {"os": "linux", "architectures": ["x86_64"], "distributions": ["ubuntu"], "distribution_versions": ["24.04"]},
+        "backend": "apt",
+        "native_id": "postgresql",
+        "source": {"id": "ubuntu-noble", "name": "Ubuntu 24.04 repositories", "kind": "curated", "trust": "official_repository", "url": "https://packages.ubuntu.com/noble/"},
+        "privilege": "required",
+        "review": {"url": "https://packages.ubuntu.com/noble/postgresql", "checked_on": "2026-11-11"},
+        "notes": [
+          "Ubuntu 24.04 release-default PostgreSQL server, normally major version 16; this is not a request for PostgreSQL 17.",
+          "Native installation can create a database cluster and start a local service. Review data directories, credentials, authentication, ports and backups before approval.",
+          "External network exposure requires separate review and consent."
+        ]
+      }
+    ],
+    "detection": [{"executable": "psql", "version_args": ["--version"]}],
+    "environment_guidance": [
+      "Server verification must inspect the selected native package and service rather than relying on the psql client version.",
+      "Database initialization, deletion, data upgrades and network exposure need separate review and explicit consent."
+    ]
+  }
+}

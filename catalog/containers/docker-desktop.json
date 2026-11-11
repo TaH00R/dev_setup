@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "docker-desktop",
+    "name": "Docker Desktop",
+    "summary": "Desktop container development application with platform prerequisites and subscription terms.",
+    "category": "containers",
+    "homepage": "https://www.docker.com/products/docker-desktop/",
+    "documentation": "https://docs.docker.com/desktop/",
+    "license": "LicenseRef-Docker-Subscription-Service-Agreement",
+    "vendor": "Docker, Inc.",
+    "tags": ["docker", "containers", "desktop"],
+    "install_specs": [
+      {
+        "support": {"os": "windows", "architectures": ["x86_64"]},
+        "backend": "winget",
+        "native_id": "Docker.DockerDesktop",
+        "source": {"id": "winget", "name": "WinGet community manifests", "kind": "curated", "trust": "community_repository", "url": "https://github.com/microsoft/winget-pkgs"},
+        "privilege": "native_prompt",
+        "restart_required": true,
+        "review": {"url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/d/Docker/DockerDesktop/4.99.0/Docker.DockerDesktop.installer.yaml", "checked_on": "2026-11-11"},
+        "notes": [
+          "Docker Desktop is a desktop application, not the standalone Docker Engine package.",
+          "Review WSL 2 or Hyper-V, hardware virtualization, supported Windows versions and native privilege prompts before installation; prerequisites may require a reboot.",
+          "A paid subscription may be required under the Docker Subscription Service Agreement; review vendor terms before approving."
+        ]
+      },
+      {
+        "support": {"os": "macos", "architectures": ["arm64"]},
+        "backend": "homebrew",
+        "native_id": "docker-desktop",
+        "source": {"id": "homebrew-cask", "name": "Homebrew cask", "kind": "curated", "trust": "community_repository", "url": "https://github.com/Homebrew/homebrew-cask"},
+        "privilege": "native_prompt",
+        "review": {"url": "https://formulae.brew.sh/api/cask/docker-desktop.json", "checked_on": "2026-11-11"},
+        "notes": [
+          "Homebrew cask for Docker Desktop; review supported macOS versions and native privileged-helper prompts.",
+          "The reviewed cask requires macOS 14 or newer; architecture match alone does not establish OS-version compatibility.",
+          "A paid subscription may be required under vendor terms; review https://docs.docker.com/desktop/setup/install/windows-install/ before approving."
+        ]
+      }
+    ],
+    "detection": [{"executable": "docker", "version_args": ["--version"]}],
+    "environment_guidance": [
+      "A working Docker CLI does not prove Docker Desktop is installed or its daemon is running; native inventory and product-specific verification are required.",
+      "Virtualization features, user-group changes and container-service configuration require separate review and explicit consent."
+    ]
+  }
+}

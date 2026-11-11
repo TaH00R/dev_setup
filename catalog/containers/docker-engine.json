@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "docker-engine",
+    "name": "Docker Engine (Ubuntu)",
+    "summary": "Ubuntu-packaged container engine; separate from Docker Desktop and Docker upstream repositories.",
+    "category": "containers",
+    "homepage": "https://docs.docker.com/engine/",
+    "documentation": "https://docs.docker.com/engine/install/ubuntu/",
+    "license": "Apache-2.0",
+    "vendor": "Docker and Moby contributors; Ubuntu packaging",
+    "tags": ["docker", "containers", "engine"],
+    "install_specs": [
+      {
+        "support": {"os": "linux", "architectures": ["x86_64"], "distributions": ["ubuntu"], "distribution_versions": ["24.04"]},
+        "backend": "apt",
+        "native_id": "docker.io",
+        "source": {"id": "ubuntu-noble", "name": "Ubuntu 24.04 repositories", "kind": "curated", "trust": "official_repository", "url": "https://packages.ubuntu.com/noble/"},
+        "privilege": "required",
+        "review": {"url": "https://packages.ubuntu.com/noble/docker.io", "checked_on": "2026-11-11"},
+        "notes": [
+          "Ubuntu docker.io distribution package; this is not Docker Desktop or docker-ce from the Docker upstream repository.",
+          "Native packages may install and start a system daemon. Review service configuration, networking, disk use and privileges before approving.",
+          "Docker-group membership can grant root-equivalent access; group changes require separate explicit consent."
+        ]
+      }
+    ],
+    "detection": [{"executable": "docker", "version_args": ["--version"]}],
+    "environment_guidance": [
+      "CLI presence alone does not distinguish Desktop from Engine or prove daemon health; native inventory and source-specific verification are required."
+    ]
+  }
+}
