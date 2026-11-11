@@ -15,6 +15,11 @@ category browsing, and curated search. Run `python -m catalog validate` to check
 the bundled catalog without installing software. See the
 [catalog guide](docs/catalog.md) for its schema, platform scope, and source caveats.
 
+The new core also includes the safe command runner and WinGet, Scoop, Homebrew,
+and APT adapters. Their command previews, consent/elevation requirements, and
+current limits are documented in the [package-manager guide](docs/package-managers.md).
+They are not yet wired into the legacy CLI or a desktop installation workflow.
+
 ![Alt Text](image.png)
 
 ## Features

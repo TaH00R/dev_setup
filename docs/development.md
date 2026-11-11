@@ -22,12 +22,13 @@ git diff --check
 
 Use `python -m ruff format .` to format the configured files. Ruff supplies
 formatting, syntax checks, unused-import checks, and import ordering. Mypy checks
-the root-level `models/`, `system/`, and `catalog/` core packages strictly. Both are
+the root-level `models/`, `system/`, `catalog/`, and `package_managers/` packages strictly. Both are
 development-only dependencies. Their version ranges bound major changes;
 this baseline does not provide a dependency lock.
 
 Formatting/linting cover the new core, domain tests, the core import test, CLI
 regression tests, catalog service/loader/schema tests, and `system_info.py`.
+Runner, adapter, and Scoop bridge tests are also in the formatting scope.
 Expand scope when migrating a legacy module; avoid a repository-wide formatting
 rewrite. All new core APIs need annotations. Keep
 domain rules outside Qt, OS branches inside adapters, and metadata declarative.
@@ -38,6 +39,12 @@ disposable CI environments. The core import test uses a separate isolated
 interpreter without site packages, imports all modules in the root-level core
 packages, and rejects legacy/GUI imports and processes. Keep core packages in
 this repository root; do not recreate a nested `dev_setup/` directory.
+
+Runner tests spawn only disposable Python processes. Bridge tests run a fake
+Scoop script through native PowerShell where available and respect execution
+policy. They never invoke installed Scoop or install software. See
+[package-manager boundaries](package-managers.md) before changing commands,
+approval handling, elevation, output observers, or the reviewed script bridge.
 
 The legacy CLI still starts with `python main.py`. Its actual installation paths
 are not a security-complete implementation of the new architecture. Use the

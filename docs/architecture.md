@@ -16,22 +16,27 @@ Operating system through a shared safe command runner
 
 The UI-independent core lives in `models/` and `system/` directly under the
 repository root, without a nested `dev_setup/` directory. Domain records and
-platform inspection are being introduced in step 2; application services,
-adapters, and the GUI remain future work. Importing core modules must not
+platform inspection were introduced in step 2. Step 4 adds reviewed native
+adapters in root-level `package_managers/` and the worker-side command runner
+in `system/`; planning/execution orchestration and the GUI remain future work.
+Importing core modules must not
 discover software, start a process,
 load Qt, or import `main.py`, `system_info.py`, or `installers`.
 
 `catalog/` now holds strict JSON decoding/loading, reviewed package metadata,
 and a pure browsing/search service. It shares the root-level `models/` records
 and does not invoke package managers or query registries. Catalog matching
-describes reviewed platform mappings; actual backend availability and execution
-remain future adapter/planner responsibilities.
+describes reviewed platform mappings. Adapters now expose availability and
+consent-bound native requests; source/candidate checks, dependency planning and
+verified operation orchestration remain future service responsibilities.
 
 Widgets render state and send user intent to services. Services build plans and
 coordinate operations against explicit adapter capabilities. Adapters validate
-native identifiers/options and construct argument arrays. The runner will use
+native identifiers/options and construct argument arrays. The runner uses
 `shell=False`, bounded capture, timeouts, cancellation, and structured errors.
 Neither services nor widgets should build package-manager shell commands.
+The user-authorized fixed Scoop `-File` bridge is documented in
+[package-manager boundaries](package-managers.md); it is not a general script API.
 
 Catalog data describes packages, exact platform mappings, detection arguments,
 dependencies, trust, and compatibility. It must never supply executable hooks.
