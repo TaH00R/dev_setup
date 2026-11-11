@@ -33,9 +33,19 @@ import dev_setup
 assert dev_setup.__file__ == sys.argv[2]
 """
         result = subprocess.run(
-            [sys.executable, "-I", "-S", "-c", script, str(root),
-             str(root / "dev_setup" / "__init__.py")],
-            capture_output=True, text=True, timeout=10, shell=False,
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                "-c",
+                script,
+                str(root),
+                str(root / "dev_setup" / "__init__.py"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            shell=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "")

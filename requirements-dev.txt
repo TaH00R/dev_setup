@@ -1,0 +1,4 @@
+-r requirements.txt
+# Development checks only; the core has no third-party import dependencies.
+ruff>=0.9,<1
+mypy>=1.15,<2

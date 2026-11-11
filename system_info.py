@@ -6,10 +6,12 @@ Can be run on its own:
 
 or invoked from the Dev Setup menu.
 """
+
 import platform
 import re
 import shutil
 import subprocess
+
 # (display name, executable looked up on PATH, version arguments)
 DEV_TOOLS = [
     ("Git", "git", ["--version"]),
@@ -27,7 +29,9 @@ DEV_TOOLS = [
 def get_system_info():
     """Return basic facts about the host environment."""
     return {
-        "os": " ".join(part for part in (platform.system(), platform.release()) if part),
+        "os": " ".join(
+            part for part in (platform.system(), platform.release()) if part
+        ),
         "architecture": platform.machine() or "unknown",
         "python_version": platform.python_version(),
         "winget_available": shutil.which("winget") is not None,
@@ -38,8 +42,12 @@ def get_tool_version(command, args):
     """Probe a known executable; unavailable or failed probes return None."""
     try:
         result = subprocess.run(
-            [command, *args], capture_output=True, text=True,
-            check=True, timeout=5, shell=False,
+            [command, *args],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+            shell=False,
         )
     except (OSError, subprocess.SubprocessError, UnicodeError):
         return None
@@ -60,6 +68,7 @@ def get_installed_tools():
         tools.append((name, installed, version))
     return tools
 
+
 def show_system_info():
     """Print the environment summary and the status of each development tool."""
     info = get_system_info()
@@ -69,7 +78,9 @@ def show_system_info():
     print(f"Architecture: {info['architecture']}")
     print(f"Python:       {info['python_version']}")
     if platform.system() == "Windows":
-        print(f"Winget:       {'available' if info['winget_available'] else 'not found'}")
+        print(
+            f"Winget:       {'available' if info['winget_available'] else 'not found'}"
+        )
 
     print("\nInstalled Tools:")
     for name, installed, version in get_installed_tools():
