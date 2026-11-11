@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "git",
+    "name": "Git",
+    "summary": "Distributed version control with source-specific credential and shell integration.",
+    "category": "api-network",
+    "homepage": "https://git-scm.com/",
+    "documentation": "https://git-scm.com/doc",
+    "license": "GPL-2.0-only",
+    "vendor": "Git contributors",
+    "tags": [
+      "git",
+      "version-control"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "Git.Git",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/g/Git/Git/2.56.0.4/Git.Git.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Git for Windows may offer credential-manager, PATH, terminal and shell integrations; review installer options."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "git",
+        "source": {
+          "id": "homebrew-core",
+          "name": "Homebrew core",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-core"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/formula/git.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Homebrew Git is distinct from the Apple command-line-tools Git distribution."
+        ]
+      },
+      {
+        "support": {
+          "os": "linux",
+          "architectures": [
+            "x86_64"
+          ],
+          "distributions": [
+            "ubuntu"
+          ],
+          "distribution_versions": [
+            "24.04"
+          ]
+        },
+        "backend": "apt",
+        "native_id": "git",
+        "source": {
+          "id": "ubuntu-noble",
+          "name": "Ubuntu 24.04 repositories",
+          "kind": "curated",
+          "trust": "official_repository",
+          "url": "https://packages.ubuntu.com/noble/"
+        },
+        "privilege": "required",
+        "review": {
+          "url": "https://packages.ubuntu.com/noble/amd64/git",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Ubuntu distribution package; graphical clients and credential helpers are separate choices."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "git",
+        "version_args": [
+          "--version"
+        ]
+      }
+    ],
+    "environment_guidance": []
+  }
+}

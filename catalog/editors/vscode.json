@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "package": {
+    "id": "vscode",
+    "name": "Visual Studio Code",
+    "summary": "Microsoft desktop editor with separate extension and account choices.",
+    "category": "editors",
+    "homepage": "https://code.visualstudio.com/",
+    "documentation": "https://code.visualstudio.com/docs",
+    "license": "LicenseRef-Microsoft-Visual-Studio-Code",
+    "vendor": "Microsoft",
+    "tags": [
+      "editor",
+      "ide",
+      "vscode"
+    ],
+    "install_specs": [
+      {
+        "support": {
+          "os": "windows",
+          "architectures": [
+            "x86_64"
+          ]
+        },
+        "backend": "winget",
+        "native_id": "Microsoft.VisualStudioCode",
+        "source": {
+          "id": "winget",
+          "name": "WinGet community manifests",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/microsoft/winget-pkgs"
+        },
+        "privilege": "native_prompt",
+        "review": {
+          "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/m/Microsoft/VisualStudioCode/1.145.2/Microsoft.VisualStudioCode.installer.yaml",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Microsoft branded binary distribution has its own license; extension installation is not implied."
+        ]
+      },
+      {
+        "support": {
+          "os": "macos",
+          "architectures": [
+            "arm64"
+          ]
+        },
+        "backend": "homebrew",
+        "native_id": "visual-studio-code",
+        "source": {
+          "id": "homebrew-cask",
+          "name": "Homebrew cask",
+          "kind": "curated",
+          "trust": "community_repository",
+          "url": "https://github.com/Homebrew/homebrew-cask"
+        },
+        "privilege": "none",
+        "review": {
+          "url": "https://formulae.brew.sh/api/cask/visual-studio-code.json",
+          "checked_on": "2026-11-11"
+        },
+        "notes": [
+          "Homebrew cask for the Microsoft branded application; review macOS requirements and CLI-link changes."
+        ]
+      }
+    ],
+    "detection": [
+      {
+        "executable": "code",
+        "version_args": [
+          "--version"
+        ]
+      }
+    ],
+    "environment_guidance": [
+      "Linux is not mapped to the default Ubuntu repositories; adding the Microsoft repository requires a separate source-review and consent flow."
+    ]
+  }
+}

@@ -5,7 +5,13 @@ import unittest
 from catalog.loader import load_catalog
 from catalog.service import CatalogService
 from models.package import SourceKind
-from models.platform import Architecture, LinuxDistribution, OperatingSystem, Platform
+from models.platform import (
+    Architecture,
+    LinuxDistribution,
+    LinuxFamily,
+    OperatingSystem,
+    Platform,
+)
 
 
 class ShippedCatalogTests(unittest.TestCase):
@@ -62,3 +68,18 @@ class ShippedCatalogTests(unittest.TestCase):
                 phrase,
                 " ".join(note for spec in package.install_specs for note in spec.notes),
             )
+
+    def test_developer_tools_and_vscode_repository_limit(self):
+        service = CatalogService(load_catalog())
+        for package_id in ("git", "cmake", "vscode"):
+            with self.subTest(package_id=package_id):
+                self.assertIsNotNone(service.get(package_id))
+        linux = Platform(
+            OperatingSystem.LINUX,
+            Architecture.X86_64,
+            LinuxDistribution("ubuntu", LinuxFamily.DEBIAN, version="24.04"),
+        )
+        match = service.search("vscode", target=linux)[0]
+        self.assertFalse(match.matching_specs)
+        self.assertIn("No reviewed mapping", match.caveat)
+        self.assertIn("Microsoft", match.package.license)
