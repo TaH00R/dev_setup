@@ -9,6 +9,24 @@ from system_info import get_tool_version, get_installed_tools
 class TestVersionDetection(unittest.TestCase):
     """Test version detection for installed tools."""
 
+    def test_probe_uses_argument_array_without_shell_and_has_timeout(self):
+        with patch('system_info.subprocess.run') as run:
+            run.return_value = MagicMock(stdout="git version 2.51.0", stderr="")
+            self.assertEqual(get_tool_version("git", ["--version"]), "2.51.0")
+        run.assert_called_once_with(
+            ["git", "--version"], capture_output=True, text=True,
+            check=True, timeout=5, shell=False,
+        )
+
+    def test_empty_output_has_no_version(self):
+        with patch('system_info.subprocess.run') as run:
+            run.return_value = MagicMock(stdout="", stderr="")
+            self.assertIsNone(get_tool_version("tool", ["--version"]))
+
+    def test_permission_error_has_no_version(self):
+        with patch('system_info.subprocess.run', side_effect=PermissionError):
+            self.assertIsNone(get_tool_version("tool", ["--version"]))
+
     def test_get_tool_version_git(self):
         """Test version extraction for Git-style output."""
         with patch('subprocess.run') as mock_run:
