@@ -1,0 +1,110 @@
+"""Declarative platform mappings and detection; never executable catalog hooks."""
+
+import re
+from dataclasses import dataclass
+from enum import Enum
+
+from ._validation import enum_value, identifier, text, unique_tuple
+from .package import PackageSource, PackageVersion
+from .platform import Architecture, OperatingSystem, Platform
+
+
+class PrivilegeRequirement(str, Enum):
+    NONE = "none"
+    NATIVE_PROMPT = "native_prompt"
+    REQUIRED = "required"
+
+
+@dataclass(frozen=True)
+class PlatformSupport:
+    os: OperatingSystem
+    architectures: tuple[Architecture, ...]
+    distributions: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        enum_value(self.os, OperatingSystem, "supported OS")
+        if self.os == OperatingSystem.UNKNOWN:
+            raise ValueError("unknown OS cannot be advertised as supported")
+        unique_tuple(self.architectures, "architectures")
+        if not self.architectures:
+            raise ValueError("support requires explicit architectures")
+        for arch in self.architectures:
+            enum_value(arch, Architecture, "supported architecture")
+            if arch == Architecture.UNKNOWN:
+                raise ValueError(
+                    "unknown architecture cannot be advertised as supported"
+                )
+        unique_tuple(self.distributions, "distributions")
+        for distro in self.distributions:
+            identifier(distro, "supported distribution")
+        if self.os == OperatingSystem.LINUX and not self.distributions:
+            raise ValueError("Linux support requires exact reviewed distribution IDs")
+        if self.os != OperatingSystem.LINUX and self.distributions:
+            raise ValueError("only Linux support can specify distributions")
+
+    def supports(self, host: Platform) -> bool:
+        if host.os != self.os or host.architecture not in self.architectures:
+            return False
+        return self.os != OperatingSystem.LINUX or (
+            host.distribution is not None and host.distribution.id in self.distributions
+        )
+
+
+@dataclass(frozen=True)
+class DetectionSpec:
+    executable: str
+    version_args: tuple[str, ...] = ("--version",)
+    timeout_seconds: float = 5.0
+    support: PlatformSupport | None = None
+
+    def __post_init__(self) -> None:
+        text(self.executable, "detection executable")
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]*", self.executable) is None:
+            raise ValueError("detection executable must be a bare executable name")
+        # Limit metadata to reviewed read-only version flags, never scripts or paths.
+        if not isinstance(self.version_args, tuple) or not self.version_args:
+            raise ValueError("version arguments must be a non-empty tuple")
+        if any(
+            arg not in {"--version", "-version", "-V", "-v", "version"}
+            for arg in self.version_args
+        ):
+            raise ValueError("detection arguments must be safe version flags")
+        if not 0 < self.timeout_seconds <= 60:
+            raise ValueError("detection timeout must be between 0 and 60 seconds")
+        if self.support is not None and not isinstance(self.support, PlatformSupport):
+            raise ValueError("detection support must be a PlatformSupport")
+
+
+@dataclass(frozen=True)
+class InstallSpec:
+    support: PlatformSupport
+    backend: str
+    native_id: str
+    source: PackageSource
+    version: PackageVersion | None = None
+    privilege: PrivilegeRequirement = PrivilegeRequirement.NATIVE_PROMPT
+    estimated_size_bytes: int | None = None
+    restart_required: bool = False
+    notes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.support, PlatformSupport):
+            raise ValueError("install support must be a PlatformSupport")
+        identifier(self.backend, "backend")
+        text(self.native_id, "native package id")
+        if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+@/:~-]*", self.native_id) is None:
+            raise ValueError("native package id contains unsafe identifier syntax")
+        if not isinstance(self.source, PackageSource):
+            raise ValueError("install source must be a PackageSource")
+        if self.version is not None and not isinstance(self.version, PackageVersion):
+            raise ValueError("install version must be a PackageVersion")
+        enum_value(self.privilege, PrivilegeRequirement, "privilege requirement")
+        if self.estimated_size_bytes is not None and (
+            type(self.estimated_size_bytes) is not int or self.estimated_size_bytes < 0
+        ):
+            raise ValueError("estimated size must be a non-negative byte count")
+        if type(self.restart_required) is not bool:
+            raise ValueError("restart requirement must be a boolean")
+        unique_tuple(self.notes, "install notes")
+        for note in self.notes:
+            text(note, "install note")
