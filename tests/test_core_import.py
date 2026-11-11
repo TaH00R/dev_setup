@@ -12,6 +12,8 @@ class CoreImportTests(unittest.TestCase):
         # -I excludes user Python paths; -S excludes installed site packages.
         script = """
 import importlib.abc
+import importlib
+import pkgutil
 import sys
 
 class RejectExternalLayers(importlib.abc.MetaPathFinder):
@@ -29,8 +31,12 @@ def deny_process(event, args):
         raise AssertionError('Core import started a process')
 
 sys.addaudithook(deny_process)
-import dev_setup
-assert dev_setup.__file__ == sys.argv[2]
+from pathlib import Path
+for name in ('models', 'system'):
+    package = importlib.import_module(name)
+    assert Path(package.__file__) == Path(sys.argv[1]) / name / '__init__.py'
+    for module in pkgutil.walk_packages(package.__path__, package.__name__ + '.'):
+        importlib.import_module(module.name)
 """
         result = subprocess.run(
             [
@@ -40,7 +46,6 @@ assert dev_setup.__file__ == sys.argv[2]
                 "-c",
                 script,
                 str(root),
-                str(root / "dev_setup" / "__init__.py"),
             ],
             capture_output=True,
             text=True,

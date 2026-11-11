@@ -4,14 +4,14 @@ import unittest
 from dataclasses import FrozenInstanceError
 from unittest import mock
 
-from dev_setup.models.platform import (
+from models.platform import (
     Architecture,
     LinuxDistribution,
     LinuxFamily,
     OperatingSystem,
     Platform,
 )
-from dev_setup.system.platform import (
+from system.platform import (
     detect_platform,
     distribution_from_release,
     normalize_architecture,
@@ -80,9 +80,7 @@ class PlatformDetectionTests(unittest.TestCase):
         self.assertEqual(result.name, "Example Linux")
 
     def test_explicit_host_never_reads_local_release(self):
-        with mock.patch(
-            "dev_setup.system.platform.platform.freedesktop_os_release"
-        ) as read:
+        with mock.patch("system.platform.platform.freedesktop_os_release") as read:
             host = detect_platform(
                 system="Linux", machine="AMD64", os_release={"ID": "ubuntu"}
             )
@@ -90,9 +88,7 @@ class PlatformDetectionTests(unittest.TestCase):
         self.assertEqual(host.distribution.id, "ubuntu")
 
     def test_non_linux_never_reads_linux_metadata(self):
-        with mock.patch(
-            "dev_setup.system.platform.platform.freedesktop_os_release"
-        ) as read:
+        with mock.patch("system.platform.platform.freedesktop_os_release") as read:
             host = detect_platform(system="Darwin", machine="arm64")
         read.assert_not_called()
         self.assertEqual(host.os, OperatingSystem.MACOS)
@@ -100,14 +96,10 @@ class PlatformDetectionTests(unittest.TestCase):
 
     def test_host_detection_and_unreadable_release(self):
         with (
+            mock.patch("system.platform.platform.system", return_value="Linux"),
+            mock.patch("system.platform.platform.machine", return_value="aarch64"),
             mock.patch(
-                "dev_setup.system.platform.platform.system", return_value="Linux"
-            ),
-            mock.patch(
-                "dev_setup.system.platform.platform.machine", return_value="aarch64"
-            ),
-            mock.patch(
-                "dev_setup.system.platform.platform.freedesktop_os_release",
+                "system.platform.platform.freedesktop_os_release",
                 side_effect=OSError,
             ),
         ):

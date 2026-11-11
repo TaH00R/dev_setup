@@ -3,16 +3,16 @@
 import unittest
 from dataclasses import FrozenInstanceError, replace
 
-from dev_setup.models.catalog import Package
-from dev_setup.models.package import (
+from models.catalog import Package
+from models.package import (
     Dependency,
     PackageSource,
     PackageVersion,
     SourceKind,
     TrustLevel,
 )
-from dev_setup.models.platform import Architecture, OperatingSystem
-from dev_setup.models.specs import DetectionSpec, InstallSpec, PlatformSupport
+from models.platform import Architecture, OperatingSystem
+from models.specs import DetectionSpec, InstallSpec, PlatformSupport
 
 
 class PackageAggregateTests(unittest.TestCase):

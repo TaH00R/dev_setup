@@ -9,7 +9,7 @@
 
 Read [architecture boundaries](docs/architecture.md) and the
 [migration map](docs/migration.md) before changing installers. Preserve the
-legacy CLI until equivalent behavior is tested. The new `dev_setup` core must
+legacy CLI until equivalent behavior is tested. The root-level `models` and `system` packages must
 import without Qt, the CLI, or legacy installer dependencies.
 
 The baseline targets Python 3.10-3.14. Run the unit suite, Ruff lint/format checks,

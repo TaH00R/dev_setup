@@ -5,6 +5,10 @@ validate domain invariants and accept immutable tuples, not mutable lists. A
 future catalog loader will decode declarative data into these types and reject
 unknown fields. This step does not introduce that loader or catalog files.
 
+Core modules live in `models/` and `system/` directly under the repository root.
+There is no nested `dev_setup/` package. Import paths are `models.platform`,
+`models.package`, `models.specs`, and `system.platform`.
+
 ## Platform identity
 
 `Platform` holds `OperatingSystem`, `Architecture`, and optional
@@ -39,3 +43,25 @@ need trusted-origin and signature/checksum verification independently.
 
 All examples in domain tests use synthetic package/source IDs. They do not add
 catalog entries or assert that any native package exists in a registry.
+
+## Reviewable plans and errors
+
+`InstallPlan` captures a target platform, unique dependency-ordered `PlanItem`
+records, creation time, and any structured issues. Unsupported packages are
+reported as issues rather than fabricated install specs. An empty plan or one
+with issues is not ready. Skipped items have a reason and no command previews.
+`OperationAction` distinguishes installation, removal, upgrade, and verification.
+
+`CommandPreview` contains adapter-supplied redacted display arguments and a
+description. It is display metadata, never executor input or catalog content.
+`PlanItem` retains selected source/backend/version through its install spec,
+declared dependencies, system-change descriptions, and consent requirements.
+Creating records neither executes commands nor grants consent. Services and
+adapters still need to verify availability, capabilities, permissions, and actual
+user approval. Privilege consent must also be enforced by future services.
+
+`OperationError` records an explicit `ErrorCode`, safe message, retryable flag,
+and sanitized details. Codes distinguish unsupported platforms, missing backend,
+network/timeout/permission problems, command failures, dependency cycles or
+conflicts, version mismatch, cancellation, and failed verification. These values
+describe errors; they do not automatically redact secrets or perform recovery.

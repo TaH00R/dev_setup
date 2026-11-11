@@ -3,7 +3,7 @@
 import platform
 from collections.abc import Mapping
 
-from dev_setup.models.platform import (
+from models.platform import (
     Architecture,
     LinuxDistribution,
     LinuxFamily,

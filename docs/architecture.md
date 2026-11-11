@@ -14,9 +14,10 @@ Package-manager / runtime / OS adapters
 Operating system through a shared safe command runner
 ```
 
-The `dev_setup` package is the UI-independent core. At this baseline only its
-import boundary exists; the services, models, adapters, and GUI above remain
-future work. Importing the package must not discover software, start a process,
+The UI-independent core lives in `models/` and `system/` directly under the
+repository root, without a nested `dev_setup/` directory. Domain records and
+platform inspection are being introduced in step 2; application services,
+adapters, and the GUI remain future work. Importing core modules must not discover software, start a process,
 load Qt, or import `main.py`, `system_info.py`, or `installers`.
 
 Widgets render state and send user intent to services. Services build plans and

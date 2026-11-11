@@ -21,7 +21,7 @@ git diff --check
 
 Use `python -m ruff format .` to format the configured files. Ruff supplies
 formatting, syntax checks, unused-import checks, and import ordering. Mypy checks
-the new core strictly. Both are development-only dependencies. Their version
+the root-level `models/` and `system/` core packages strictly. Both are development-only dependencies. Their version
 ranges bound major changes; this baseline does not provide a dependency lock.
 
 Formatting/linting initially cover the new core, its import test, CLI regression

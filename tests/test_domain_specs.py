@@ -3,11 +3,11 @@
 import unittest
 from dataclasses import replace
 
-from dev_setup.models.package import PackageSource, SourceKind, TrustLevel
-from dev_setup.models.platform import Architecture as Arch
-from dev_setup.models.platform import LinuxDistribution, LinuxFamily, Platform
-from dev_setup.models.platform import OperatingSystem as OS
-from dev_setup.models.specs import DetectionSpec, InstallSpec, PlatformSupport
+from models.package import PackageSource, SourceKind, TrustLevel
+from models.platform import Architecture as Arch
+from models.platform import LinuxDistribution, LinuxFamily, Platform
+from models.platform import OperatingSystem as OS
+from models.specs import DetectionSpec, InstallSpec, PlatformSupport
 
 
 class SpecificationTests(unittest.TestCase):
