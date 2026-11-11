@@ -22,13 +22,14 @@ git diff --check
 
 Use `python -m ruff format .` to format the configured files. Ruff supplies
 formatting, syntax checks, unused-import checks, and import ordering. Mypy checks
-the root-level `models/`, `system/`, `catalog/`, and `package_managers/` packages strictly. Both are
+the root-level `models/`, `system/`, `catalog/`, `package_managers/`, and `services/` packages strictly. Both are
 development-only dependencies. Their version ranges bound major changes;
 this baseline does not provide a dependency lock.
 
 Formatting/linting cover the new core, domain tests, the core import test, CLI
 regression tests, catalog service/loader/schema tests, and `system_info.py`.
-Runner, adapter, and Scoop bridge tests are also in the formatting scope.
+Runner, adapter, Scoop bridge, inventory inspection and operation service tests
+are also in the formatting scope.
 Expand scope when migrating a legacy module; avoid a repository-wide formatting
 rewrite. All new core APIs need annotations. Keep
 domain rules outside Qt, OS branches inside adapters, and metadata declarative.

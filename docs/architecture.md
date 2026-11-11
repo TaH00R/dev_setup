@@ -18,7 +18,8 @@ The UI-independent core lives in `models/` and `system/` directly under the
 repository root, without a nested `dev_setup/` directory. Domain records and
 platform inspection were introduced in step 2. Step 4 adds reviewed native
 adapters in root-level `package_managers/` and the worker-side command runner
-in `system/`; planning/execution orchestration and the GUI remain future work.
+in `system/`. Step 6 adds root-level `services/` for inventory, dependency/conflict
+planning, exact-plan consent and verified operations. The GUI remains future work.
 Importing core modules must not
 discover software, start a process,
 load Qt, or import `main.py`, `system_info.py`, or `installers`.
@@ -27,8 +28,11 @@ load Qt, or import `main.py`, `system_info.py`, or `installers`.
 and a pure browsing/search service. It shares the root-level `models/` records
 and does not invoke package managers or query registries. Catalog matching
 describes reviewed platform mappings. Adapters now expose availability and
-consent-bound native requests; source/candidate checks, dependency planning and
-verified operation orchestration remain future service responsibilities.
+consent-bound native requests. APT and Homebrew have native inspection in
+`package_managers/inspection.py`; additional adapters fail orchestration explicitly
+until their inventory and transaction formats have reviewed parsers. The shared
+evidence records live in `models/inventory.py`, so adapters do not depend on
+application services. See [operation services](operations.md) for the API and limits.
 
 Widgets render state and send user intent to services. Services build plans and
 coordinate operations against explicit adapter capabilities. Adapters validate

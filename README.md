@@ -25,6 +25,12 @@ The catalog contains 14 packages and 39 reviewed mappings. See the
 [support matrix](docs/support-matrix.md) for platform limits, unsupported
 operations and deferred backends.
 
+Root-level `services/` now provides inventory observations, dependency/conflict
+planning, exact-plan consent, and verified operation execution. Native inspection
+and orchestration are enabled for APT and Homebrew; other backends need reviewed
+inventory/transaction parsers first. See the [operation service guide](docs/operations.md)
+for usage, consent requirements, and current limits. The GUI remains the next step.
+
 ![Alt Text](image.png)
 
 ## Features

@@ -28,9 +28,12 @@ capability/build/approval contract and exact-command tests; no empty adapter
 classes or invented command support are shipped.
 
 Native version selection remains unsupported for the five new adapters.
-Queries return bounded native output; parsing, native inventory/candidate
-checks, dependency plans and installation verification belong to step 6 and
-live discovery to step 8. Compatible family detection can expose read-only
+Queries return bounded native output. Step 6 adds APT/Homebrew native inspection,
+dependency plans and verified operation services; the other adapters' application
+orchestration remains explicitly unsupported until reviewed parsers are added.
+See [operation services](operations.md) for the distinction between command
+capabilities and enabled workflows. Live discovery belongs to step 8.
+Compatible family detection can expose read-only
 commands on derivatives, but package mutations require the exact reviewed
 distribution, release and source. Manager availability is detected separately.
 
@@ -136,4 +139,5 @@ Native package operations are mocked; package registry/documentation reads were
 performed only for manual source review. No software was installed, removed or
 upgraded. Remote OS CI, actual native-version compatibility, elevation, repository
 configuration and clean-machine integration remain unverified locally. No new
-dependency was introduced. Inventory/planning/verification services are next.
+dependency was introduced. These are the historical step 5 results; step 6
+inventory/planning/verification scope is documented in [operation services](operations.md).

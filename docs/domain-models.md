@@ -114,6 +114,13 @@ stage, not an invented estimate for the entire installation.
 
 ## Step 2 scope
 
+Step 6 extends the records with native inventory, detection observations, and
+candidate review evidence in `models/inventory.py`. A read-only `VERIFY` plan
+item may have no executable preview: verification reads native inventory instead
+of inventing a package mutation command. Non-skipped mutations still require
+command previews. Service review/consent/audit records and execution behavior
+are described in [operation services](operations.md).
+
 Implemented: typed/validated records, pure platform normalization, explicit host
 inspection, immutable plans, lifecycle validation, structured errors, results,
 and progress events. No additional dependencies were introduced. The legacy CLI

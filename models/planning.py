@@ -73,7 +73,7 @@ class PlanItem:
                 raise ValueError(
                     "skipped items cannot have executable command previews"
                 )
-        elif not self.commands:
+        elif not self.commands and self.action != OperationAction.VERIFY:
             raise ValueError("a non-skipped item requires command previews")
 
     @property

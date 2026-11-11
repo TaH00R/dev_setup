@@ -145,10 +145,12 @@ also skips rather than relaxing execution policy. Windows CI exercises the
 bridge where available. Real manager versions, native installers, elevation,
 and clean-machine paths still need disposable integration environments.
 
-Step 5 adds staged backend/catalog coverage. Step 6 must add parsed inventory,
-source/candidate checks, dependency/conflict planning, actual consent services,
-verification, and operation-state integration. The desktop worker/consent UI
-comes in step 7. The legacy CLI remains on its preserved installer paths.
+Step 5 adds staged backend/catalog coverage. Step 6 adds parsed APT/Homebrew
+inventory, source/candidate checks, dependency/conflict planning, exact-plan
+consent, native verification and operation-state integration. Additional backend
+inspection remains gated explicitly; command support alone does not enable
+application orchestration. See [operation services](operations.md). The desktop
+worker/consent UI comes in step 7. The legacy CLI retains its installer paths.
 
 Command syntax was reviewed against primary sources:
 
