@@ -21,18 +21,21 @@ git diff --check
 
 Use `python -m ruff format .` to format the configured files. Ruff supplies
 formatting, syntax checks, unused-import checks, and import ordering. Mypy checks
-the root-level `models/` and `system/` core packages strictly. Both are development-only dependencies. Their version
-ranges bound major changes; this baseline does not provide a dependency lock.
+the root-level `models/` and `system/` core packages strictly. Both are
+development-only dependencies. Their version ranges bound major changes;
+this baseline does not provide a dependency lock.
 
-Formatting/linting initially cover the new core, its import test, CLI regression
-tests, and `system_info.py`. Expand scope when migrating a legacy module; avoid a
+Formatting/linting cover the new core, domain tests, the core import test, CLI
+regression tests, and `system_info.py`. Expand scope when migrating a legacy module; avoid a
 repository-wide formatting rewrite. All new core APIs need annotations. Keep
 domain rules outside Qt, OS branches inside adapters, and metadata declarative.
 
 Ordinary tests must mock package operations and network downloads. Never install
 tools or upgrade the host as part of a unit test. Integration tests belong in
 disposable CI environments. The core import test uses a separate isolated
-interpreter without site packages and rejects legacy/GUI imports and processes.
+interpreter without site packages, imports all modules in the root-level core
+packages, and rejects legacy/GUI imports and processes. Keep core packages in
+this repository root; do not recreate a nested `dev_setup/` directory.
 
 The legacy CLI still starts with `python main.py`. Its actual installation paths
 are not a security-complete implementation of the new architecture. Use the

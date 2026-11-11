@@ -3,10 +3,12 @@
 Automated setup tool for programming languages, compilers, and development environments.
 
 The current application is a legacy interactive CLI. Development of a
-GUI-independent Python core and a PySide6 desktop application is beginning;
-the desktop workflow is not implemented yet. See the
+GUI-independent Python core and a PySide6 desktop application is underway.
+Validated domain models and platform detection now live in root-level `models/`
+and `system/`; the desktop workflow is not implemented yet. See the
 [architecture](docs/architecture.md), [migration roadmap](docs/migration.md),
-and [development guide](docs/development.md).
+and [development guide](docs/development.md). The current core record contract
+is documented in [domain models](docs/domain-models.md).
 
 ![Alt Text](image.png)
 

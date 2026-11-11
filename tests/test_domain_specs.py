@@ -98,3 +98,12 @@ class SpecificationTests(unittest.TestCase):
         ]:
             with self.subTest(change=change), self.assertRaises(ValueError):
                 replace(spec, **change)
+
+    def test_version_subcommands_cannot_be_interpreter_script_names(self):
+        for executable in ("python", "node", "bash", "example"):
+            with self.subTest(executable=executable), self.assertRaises(ValueError):
+                DetectionSpec(executable, ("version",))
+        self.assertEqual(DetectionSpec("go", ("version",)).version_args, ("version",))
+        for timeout in (True, "5"):
+            with self.subTest(timeout=timeout), self.assertRaises(ValueError):
+                DetectionSpec("example", timeout_seconds=timeout)

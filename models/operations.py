@@ -98,6 +98,10 @@ class OperationResult:
             raise ValueError("exit code must be an integer or None")
         if self.state == OperationState.SUCCEEDED and self.exit_code not in (None, 0):
             raise ValueError("non-zero exit cannot be reported as success")
+        if self.state == OperationState.SKIPPED and (
+            self.exit_code is not None or self.stdout or self.stderr
+        ):
+            raise ValueError("skipped operations cannot report command execution")
         if self.error is not None and not isinstance(self.error, OperationError):
             raise ValueError("result error must be an OperationError")
         if self.state == OperationState.FAILED and self.error is None:
@@ -162,6 +166,23 @@ class Operation:
                 if not self.created_at <= value <= self.updated_at:
                     raise ValueError(f"{name} is outside operation lifetime")
         validate_progress(self.progress)
+        if self.consented_at is not None and (
+            self.started_at is None or self.consented_at < self.started_at
+        ):
+            raise ValueError("consent cannot precede the start of resolution")
+        if self.item.action == OperationAction.VERIFY and self.state in {
+            OperationState.DOWNLOADING,
+            OperationState.INSTALLING,
+        }:
+            raise ValueError("verification cannot perform installation")
+        if self.item.skip_reason is not None and self.state not in {
+            OperationState.QUEUED,
+            OperationState.RESOLVING,
+            OperationState.SKIPPED,
+            OperationState.CANCELLED,
+            OperationState.FAILED,
+        }:
+            raise ValueError("skipped plan items cannot execute commands")
         if self.result is not None and not isinstance(self.result, OperationResult):
             raise ValueError("operation result must be an OperationResult")
         if self.state.terminal != (self.result is not None):
@@ -228,18 +249,6 @@ class Operation:
         if self.state == OperationState.RESOLVING and state == OperationState.VERIFYING:
             if self.item.action != OperationAction.VERIFY:
                 raise ValueError("mutations cannot bypass consent and execution")
-        if self.item.action == OperationAction.VERIFY and state in {
-            OperationState.DOWNLOADING,
-            OperationState.INSTALLING,
-        }:
-            raise ValueError("verification cannot perform installation")
-        if self.item.skip_reason is not None and state not in {
-            OperationState.RESOLVING,
-            OperationState.SKIPPED,
-            OperationState.CANCELLED,
-            OperationState.FAILED,
-        }:
-            raise ValueError("skipped plan items cannot execute commands")
         return replace(
             self,
             state=state,

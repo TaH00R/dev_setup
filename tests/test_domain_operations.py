@@ -23,6 +23,104 @@ class OperationModelTests(unittest.TestCase):
     def advance(self, operation, state, **kwargs):
         return operation.advance(state, at=self.now, **kwargs)
 
+    def test_all_install_transition_pairs_against_lifecycle_contract(self):
+        allowed = {
+            State.QUEUED: {State.RESOLVING, State.CANCELLED},
+            State.RESOLVING: {
+                State.AWAITING_CONSENT,
+                State.FAILED,
+                State.CANCELLED,
+                State.SKIPPED,
+            },
+            State.AWAITING_CONSENT: {
+                State.DOWNLOADING,
+                State.INSTALLING,
+                State.FAILED,
+                State.CANCELLED,
+            },
+            State.DOWNLOADING: {State.INSTALLING, State.FAILED, State.CANCELLED},
+            State.INSTALLING: {State.VERIFYING, State.FAILED, State.CANCELLED},
+            State.VERIFYING: {State.SUCCEEDED, State.FAILED, State.CANCELLED},
+        }
+
+        def result(state):
+            return OperationResult(
+                state,
+                "Finished.",
+                self.now,
+                error=OperationError(ErrorCode.COMMAND_FAILED, "Command failed.")
+                if state == State.FAILED
+                else None,
+            )
+
+        for origin in State:
+            operation = replace(
+                self.operation,
+                state=origin,
+                started_at=self.now if origin != State.QUEUED else None,
+                consented_at=self.now
+                if origin
+                in {
+                    State.DOWNLOADING,
+                    State.INSTALLING,
+                    State.VERIFYING,
+                    State.SUCCEEDED,
+                }
+                else None,
+                result=result(origin) if origin.terminal else None,
+            )
+            for target in State:
+                with self.subTest(origin=origin, target=target):
+                    kwargs = dict(
+                        result=result(target) if target.terminal else None,
+                        consent_granted=origin == State.AWAITING_CONSENT
+                        and target in {State.DOWNLOADING, State.INSTALLING},
+                    )
+                    if target in allowed.get(origin, set()):
+                        self.assertEqual(
+                            self.advance(operation, target, **kwargs).state, target
+                        )
+                    else:
+                        with self.assertRaises(ValueError):
+                            self.advance(operation, target, **kwargs)
+
+    def test_failure_codes_keep_specific_cause_including_verification_exit_zero(self):
+        for code in (
+            ErrorCode.TIMEOUT,
+            ErrorCode.NETWORK,
+            ErrorCode.VERSION_MISMATCH,
+            ErrorCode.VERIFICATION_FAILED,
+            ErrorCode.PERMISSION_DENIED,
+        ):
+            with self.subTest(code=code):
+                result = OperationResult(
+                    State.FAILED,
+                    "Operation failed.",
+                    self.now,
+                    exit_code=0,
+                    error=OperationError(code, "Specific cause."),
+                )
+                self.assertEqual(result.error.code, code)
+
+    def test_inconsistent_restored_snapshots_are_rejected(self):
+        verifying = replace(self.item, action=OperationAction.VERIFY)
+        with self.assertRaises(ValueError):
+            replace(
+                self.operation,
+                item=verifying,
+                state=State.INSTALLING,
+                started_at=self.now,
+            )
+        with self.assertRaises(ValueError):
+            OperationResult(State.SKIPPED, "Skipped.", exit_code=0)
+        with self.assertRaises(ValueError):
+            replace(
+                self.operation,
+                state=State.RESOLVING,
+                started_at=self.now,
+                consented_at=self.now - timedelta(seconds=1),
+            )
+
     def test_install_lifecycle_requires_consent_and_verification(self):
         operation = self.advance(self.operation, State.RESOLVING)
         operation = self.advance(operation, State.AWAITING_CONSENT)

@@ -62,14 +62,24 @@ class DetectionSpec:
         if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]*", self.executable) is None:
             raise ValueError("detection executable must be a bare executable name")
         # Limit metadata to reviewed read-only version flags, never scripts or paths.
-        if not isinstance(self.version_args, tuple) or not self.version_args:
-            raise ValueError("version arguments must be a non-empty tuple")
-        if any(
-            arg not in {"--version", "-version", "-V", "-v", "version"}
-            for arg in self.version_args
+        if self.version_args not in (("--version",), ("-version",), ("-V",), ("-v",)):
+            # A generic `python version` would execute a file called `version`.
+            executable = self.executable.lower().removesuffix(".exe")
+            if self.version_args != ("version",) or executable not in {
+                "go",
+                "docker",
+                "podman",
+                "helm",
+                "kubectl",
+            }:
+                raise ValueError(
+                    "detection requires one safe version flag or a reviewed subcommand"
+                )
+        if (
+            isinstance(self.timeout_seconds, bool)
+            or not isinstance(self.timeout_seconds, (int, float))
+            or not 0 < self.timeout_seconds <= 60
         ):
-            raise ValueError("detection arguments must be safe version flags")
-        if not 0 < self.timeout_seconds <= 60:
             raise ValueError("detection timeout must be between 0 and 60 seconds")
         if self.support is not None and not isinstance(self.support, PlatformSupport):
             raise ValueError("detection support must be a PlatformSupport")
