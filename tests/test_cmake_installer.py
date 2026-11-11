@@ -15,6 +15,11 @@ from installers.cmake_installer import CMakeInstaller
 
 class CMakeInstallerTests(unittest.TestCase):
 
+    def setUp(self):
+        platform_patch = mock.patch("installers.cmake_installer.OS", "Windows")
+        platform_patch.start()
+        self.addCleanup(platform_patch.stop)
+
     def test_skips_when_already_installed(self):
         buffer = io.StringIO()
         with mock.patch.object(CMakeInstaller, "_is_cmake_installed", return_value=True), \

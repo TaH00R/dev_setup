@@ -15,6 +15,11 @@ from installers import git_installer, python_installer
 
 class GitInstallerTests(unittest.TestCase):
 
+    def setUp(self):
+        platform_patch = mock.patch("installers.git_installer.OS", "Windows")
+        platform_patch.start()
+        self.addCleanup(platform_patch.stop)
+
     def test_reports_missing_winget_without_crashing(self):
         buffer = io.StringIO()
         with mock.patch.object(git_installer, "is_git_installed", return_value=False), \
@@ -55,6 +60,11 @@ class GitInstallerTests(unittest.TestCase):
 
 
 class PythonInstallerTests(unittest.TestCase):
+
+    def setUp(self):
+        platform_patch = mock.patch("installers.python_installer.OS", "Windows")
+        platform_patch.start()
+        self.addCleanup(platform_patch.stop)
 
     def test_reports_missing_winget_without_crashing(self):
         buffer = io.StringIO()

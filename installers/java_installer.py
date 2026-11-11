@@ -3,6 +3,7 @@ import distro
 import platform
 
 from installers.errors import (
+    confirm_system_update,
     PACKAGE_MANAGER_MISSING_HINT,
     describe_winget_error,
     report_failure,
@@ -74,6 +75,9 @@ class JavaInstaller:
             return
 
         print("Installing Java...")
+        if OS == "Linux" and not confirm_system_update():
+            print("Skipped Java system update.")
+            return
         get_logger().info("Installing Java")
 
         if OS == "Windows" and not winget_available():

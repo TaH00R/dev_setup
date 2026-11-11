@@ -26,11 +26,20 @@ FILE_PERMISSION_HINT = (
 )
 
 PACKAGE_MANAGER_MISSING_HINT = (
-    "Package manager (winget/apt/dnf) was not found. Please verify that a valid package manager is installed and "
-    "available in PATH.\n"
-    'For Windows install "App Installer" from the Microsoft Store, or see '
-    f"{WINGET_DOCS_URL}"
+    "Package manager unavailable. " + WINGET_MISSING_HINT
 )
+
+
+def confirm_system_update():
+    """Default to declining the legacy Linux update/install sequence."""
+    try:
+        answer = input(
+            "This operation refreshes package metadata and may upgrade system "
+            "packages before installation. Continue? [y/N]: "
+        )
+    except (EOFError, KeyboardInterrupt):
+        return False
+    return answer.strip().lower() in {"y", "yes"}
 
 def winget_available():
     """Return True if the winget executable can be found on PATH."""

@@ -3,6 +3,7 @@ import platform
 import distro
 
 from installers.errors import (
+    confirm_system_update,
     PACKAGE_MANAGER_MISSING_HINT,
     describe_winget_error,
     report_failure,
@@ -71,6 +72,9 @@ class GCCInstaller:
             return
 
         print("Installing GCC...")
+        if OS == "Linux" and not confirm_system_update():
+            print("Skipped GCC system update.")
+            return
         get_logger().info("Installing GCC")
 
         if OS == "Windows" and not winget_available():

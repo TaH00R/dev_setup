@@ -15,6 +15,20 @@ import requests
 from installers import errors
 
 
+class ConfirmSystemUpdateTests(unittest.TestCase):
+
+    def test_only_explicit_yes_is_accepted(self):
+        for answer, expected in [("", False), ("no", False), ("maybe", False),
+                                 ("y", True), (" YES ", True)]:
+            with self.subTest(answer=answer), mock.patch("builtins.input", return_value=answer):
+                self.assertEqual(errors.confirm_system_update(), expected)
+
+    def test_interrupted_or_closed_input_declines(self):
+        for error in (EOFError, KeyboardInterrupt):
+            with self.subTest(error=error), mock.patch("builtins.input", side_effect=error):
+                self.assertFalse(errors.confirm_system_update())
+
+
 class WingetAvailableTests(unittest.TestCase):
 
     def test_true_when_on_path(self):

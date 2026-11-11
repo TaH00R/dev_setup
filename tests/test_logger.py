@@ -42,7 +42,8 @@ class LoggerTests(unittest.TestCase):
         log.info("Installing Git")
         for handler in log.handlers:
             handler.flush()
-        content = open(logger_module.LOG_FILE, encoding="utf-8").read()
+        with open(logger_module.LOG_FILE, encoding="utf-8") as stream:
+            content = stream.read()
         self.assertRegex(content, r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]")
         self.assertIn("Installing Git", content)
 

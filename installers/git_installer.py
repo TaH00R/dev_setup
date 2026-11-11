@@ -3,6 +3,7 @@ import platform
 import distro
 
 from installers.errors import (
+    confirm_system_update,
     PACKAGE_MANAGER_MISSING_HINT,
     describe_winget_error,
     report_failure,
@@ -69,6 +70,9 @@ class GitInstaller:
             return
 
         print("Installing Git...")
+        if OS == "Linux" and not confirm_system_update():
+            print("Skipped Git system update.")
+            return
         get_logger().info("Installing Git")
 
         if OS == "Windows" and not winget_available():

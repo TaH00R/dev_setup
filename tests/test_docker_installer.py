@@ -16,6 +16,11 @@ from installers.docker_installer import DockerInstaller
 
 class DockerInstallerTests(unittest.TestCase):
 
+    def setUp(self):
+        platform_patch = mock.patch("installers.docker_installer.OS", "Windows")
+        platform_patch.start()
+        self.addCleanup(platform_patch.stop)
+
     def test_skips_when_already_installed(self):
         buffer = io.StringIO()
 

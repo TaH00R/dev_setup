@@ -15,6 +15,11 @@ from installers.node_installer import NodeInstaller
 
 class NodeInstallerTests(unittest.TestCase):
 
+    def setUp(self):
+        platform_patch = mock.patch("installers.node_installer.OS", "Windows")
+        platform_patch.start()
+        self.addCleanup(platform_patch.stop)
+
     def test_skips_when_already_installed(self):
         buffer = io.StringIO()
         with mock.patch.object(NodeInstaller, "_is_node_installed", return_value=True), \

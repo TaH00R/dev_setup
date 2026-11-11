@@ -24,7 +24,9 @@ def get_logger():
     logger = logging.getLogger("dev_setup")
     logger.setLevel(logging.INFO)
     logger.propagate = False
-    logger.handlers.clear()
+    for handler in list(logger.handlers):
+        handler.close()
+        logger.removeHandler(handler)
 
     try:
         os.makedirs(LOG_DIR, exist_ok=True)

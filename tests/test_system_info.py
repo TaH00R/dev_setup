@@ -38,7 +38,8 @@ class GetInstalledToolsTests(unittest.TestCase):
         def fake_which(command):
             return "/usr/bin/git" if command == "git" else None
 
-        with mock.patch("system_info.shutil.which", side_effect=fake_which):
+        with mock.patch("system_info.shutil.which", side_effect=fake_which), \
+                mock.patch("system_info.get_tool_version", return_value="2.51.0"):
             tools = {
                 name: is_installed
                 for name, is_installed, _version in system_info.get_installed_tools()
