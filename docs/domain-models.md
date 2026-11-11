@@ -21,7 +21,8 @@ Unknown systems, architectures, and missing/unknown distro families have an
 package availability. Actual capability/availability checks come later.
 
 `PlatformSupport` explicitly lists architectures and, for Linux, reviewed exact
-distribution IDs. Matching never expands an Ubuntu mapping to Debian just
+distribution IDs and optional exact distribution-version restrictions. Missing
+release facts do not match a release-restricted mapping. Matching never expands an Ubuntu mapping to Debian just
 because they share ancestry. Distribution-family detection provides context;
 it does not infer package IDs or install a package manager.
 
@@ -43,6 +44,11 @@ need trusted-origin and signature/checksum verification independently.
 
 All examples in domain tests use synthetic package/source IDs. They do not add
 catalog entries or assert that any native package exists in a registry.
+
+`InstallSpec.review` optionally records a `MappingReview` (credential-free HTTPS
+evidence URL and explicit review date). The curated catalog loader requires this
+evidence for every shipped mapping; it records a source metadata review rather
+than an actual installation test. Native adapter capability checks remain separate.
 
 ## Reviewable plans and errors
 

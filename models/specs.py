@@ -2,10 +2,11 @@
 
 import re
 from dataclasses import dataclass
+from datetime import date
 from enum import Enum
 
 from ._validation import enum_value, identifier, text, unique_tuple
-from .package import PackageSource, PackageVersion
+from .package import PackageSource, PackageVersion, https_url
 from .platform import Architecture, OperatingSystem, Platform
 
 
@@ -20,6 +21,7 @@ class PlatformSupport:
     os: OperatingSystem
     architectures: tuple[Architecture, ...]
     distributions: tuple[str, ...] = ()
+    distribution_versions: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         enum_value(self.os, OperatingSystem, "supported OS")
@@ -41,13 +43,36 @@ class PlatformSupport:
             raise ValueError("Linux support requires exact reviewed distribution IDs")
         if self.os != OperatingSystem.LINUX and self.distributions:
             raise ValueError("only Linux support can specify distributions")
+        unique_tuple(self.distribution_versions, "distribution versions")
+        if self.os != OperatingSystem.LINUX and self.distribution_versions:
+            raise ValueError("only Linux support can restrict distribution versions")
+        for version in self.distribution_versions:
+            text(version, "supported distribution version")
 
     def supports(self, host: Platform) -> bool:
         if host.os != self.os or host.architecture not in self.architectures:
             return False
         return self.os != OperatingSystem.LINUX or (
-            host.distribution is not None and host.distribution.id in self.distributions
+            host.distribution is not None
+            and host.distribution.id in self.distributions
+            and (
+                not self.distribution_versions
+                or host.distribution.version in self.distribution_versions
+            )
         )
+
+
+@dataclass(frozen=True)
+class MappingReview:
+    """Evidence of source metadata review, not a successful installation test."""
+
+    url: str
+    checked_on: date
+
+    def __post_init__(self) -> None:
+        https_url(self.url, "mapping review URL")
+        if type(self.checked_on) is not date:
+            raise ValueError("mapping review date must be a date")
 
 
 @dataclass(frozen=True)
@@ -96,6 +121,7 @@ class InstallSpec:
     estimated_size_bytes: int | None = None
     restart_required: bool = False
     notes: tuple[str, ...] = ()
+    review: MappingReview | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.support, PlatformSupport):
@@ -118,3 +144,5 @@ class InstallSpec:
         unique_tuple(self.notes, "install notes")
         for note in self.notes:
             text(note, "install note")
+        if self.review is not None and not isinstance(self.review, MappingReview):
+            raise ValueError("mapping review must be a MappingReview")

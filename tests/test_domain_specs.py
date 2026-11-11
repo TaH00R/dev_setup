@@ -2,15 +2,39 @@
 
 import unittest
 from dataclasses import replace
+from datetime import date
 
 from models.package import PackageSource, SourceKind, TrustLevel
 from models.platform import Architecture as Arch
 from models.platform import LinuxDistribution, LinuxFamily, Platform
 from models.platform import OperatingSystem as OS
-from models.specs import DetectionSpec, InstallSpec, PlatformSupport
+from models.specs import DetectionSpec, InstallSpec, MappingReview, PlatformSupport
 
 
 class SpecificationTests(unittest.TestCase):
+    def test_linux_release_scope_is_not_inferred_from_distribution_id(self):
+        support = PlatformSupport(OS.LINUX, (Arch.X86_64,), ("ubuntu",), ("24.04",))
+        for version, expected in [("24.04", True), ("22.04", False), (None, False)]:
+            with self.subTest(version=version):
+                host = Platform(
+                    OS.LINUX,
+                    Arch.X86_64,
+                    LinuxDistribution("ubuntu", LinuxFamily.DEBIAN, version=version),
+                )
+                self.assertEqual(support.supports(host), expected)
+        with self.assertRaises(ValueError):
+            PlatformSupport(
+                OS.WINDOWS, (Arch.X86_64,), distribution_versions=("24.04",)
+            )
+
+    def test_mapping_review_requires_https_and_an_explicit_date(self):
+        review = MappingReview("https://example.org/package", date(2026, 11, 11))
+        self.assertEqual(review.checked_on.isoformat(), "2026-11-11")
+        with self.assertRaises(ValueError):
+            MappingReview("http://example.org", date(2026, 11, 11))
+        with self.assertRaises(ValueError):
+            MappingReview("https://example.org", "2026-11-11")
+
     def setUp(self):
         self.source = PackageSource(
             "example", "Example", SourceKind.CURATED, TrustLevel.UNKNOWN
