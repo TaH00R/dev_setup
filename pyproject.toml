@@ -1,7 +1,7 @@
 [tool.ruff]
 target-version = "py310"
 line-length = 88
-include = ["main.py", "app/**/*.py", "models/**/*.py", "system/**/*.py", "package_managers/**/*.py", "services/**/*.py", "tests/unit/test_*.py", "tests/catalog/**/*.py", "tests/gui/**/*.py", "tests/integration/**/*.py", "tests/fixtures/**/*.py", "tests/paths.py", "tests/**/__init__.py", "tests/unit/legacy/test_cli.py"]
+include = ["main.py", "app/**/*.py", "models/**/*.py", "system/**/*.py", "package_managers/**/*.py", "runtimes/**/*.py", "services/**/*.py", "tests/unit/test_*.py", "tests/catalog/**/*.py", "tests/gui/**/*.py", "tests/integration/**/*.py", "tests/fixtures/**/*.py", "tests/paths.py", "tests/**/__init__.py", "tests/unit/legacy/test_cli.py"]
 extend-exclude = ["app/legacy/installers"]
 
 [tool.ruff.lint]
@@ -9,7 +9,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 [tool.mypy]
 python_version = "3.10"
-files = ["app/main.py", "app/__main__.py", "app/bootstrap.py", "app/ui", "main.py", "models", "system", "package_managers", "services"]
+files = ["app/main.py", "app/__main__.py", "app/bootstrap.py", "app/ui", "main.py", "models", "system", "package_managers", "runtimes", "services"]
 strict = true
 warn_unused_configs = true
 

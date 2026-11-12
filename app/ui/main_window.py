@@ -47,6 +47,7 @@ from services.discovery import SearchSnapshot
 from services.records import ExecutionReport, PackageRequest, ReviewedPlan
 from system.commands import OutputSnapshot
 
+from .environments import EnvironmentPages
 from .review import ReviewDialog
 from .search import SearchController
 from .theme import apply_theme
@@ -89,6 +90,8 @@ class MainWindow(QMainWindow):
         "Queue",
         "History",
         "Settings",
+        "Presets",
+        "Runtimes",
     )
 
     def __init__(self, services: DesktopServices, *, auto_refresh: bool = True) -> None:
@@ -139,6 +142,14 @@ class MainWindow(QMainWindow):
         self._queue()
         self._history()
         self._settings()
+        self.environment = EnvironmentPages(
+            services, lambda: not self.controller.busy, self
+        )
+        self.stack.addWidget(self.environment.presets_page)
+        self.stack.addWidget(self.environment.runtimes_page)
+        self.environment.package_review.connect(self._review)
+        self.environment.busy_changed.connect(self._environment_busy)
+        self.controller.external_busy = lambda: self.environment.controller.busy
         footer = QHBoxLayout()
         self.status = label(
             "Ready. Refresh inventory to inspect installed packages.", "muted"
@@ -546,7 +557,7 @@ class MainWindow(QMainWindow):
     @Slot(bool)
     def _search_busy(self, busy: bool) -> None:
         self.cancel_search.setVisible(busy)
-        if not busy and self.pending_close and not self.controller.busy:
+        if not busy and self.pending_close and not self._operation_busy():
             QTimer.singleShot(0, self.close)
 
     def _live_details(self) -> None:
@@ -656,12 +667,12 @@ class MainWindow(QMainWindow):
                 ]
             )
             can_select_version = self.services.version_selection(spec, action)
-            self.version.setEnabled(can_select_version and not self.controller.busy)
+            self.version.setEnabled(can_select_version and not self._operation_busy())
             if not can_select_version:
                 self.version.clear()
             self.review_button.setEnabled(
                 self.services.action_reason(spec, action) is None
-                and not self.controller.busy
+                and not self._operation_busy()
             )
         else:
             self.review_button.setEnabled(False)
@@ -694,8 +705,13 @@ class MainWindow(QMainWindow):
                 return
             self.controller.preview(request)
 
+    def _operation_busy(self) -> bool:
+        return self.controller.busy or self.environment.controller.busy
+
     @Slot(bool)
     def _busy(self, busy: bool) -> None:
+        busy = busy or self.environment.controller.busy
+        self.environment.set_external_busy(self.controller.busy)
         self.refresh_button.setEnabled(not busy)
         self.check_updates.setEnabled(not busy)
         self.clear_button.setEnabled(not busy)
@@ -713,6 +729,7 @@ class MainWindow(QMainWindow):
 
     def _cancel(self) -> None:
         self.controller.cancel()
+        self.environment.controller.cancel()
         self.status.setText(
             "Cancellation requested. Waiting for the native operation to stop; partial changes may remain."
         )
@@ -788,13 +805,13 @@ class MainWindow(QMainWindow):
             row is not None and row.mapping is not None and row.package_id is not None
         )
         self.installed_view.setEnabled(valid)
-        self.verify_button.setEnabled(valid and not self.controller.busy)
-        self.remove_button.setEnabled(valid and not self.controller.busy)
+        self.verify_button.setEnabled(valid and not self._operation_busy())
+        self.remove_button.setEnabled(valid and not self._operation_busy())
         index = self.update_table.currentRow()
         self.review_update.setEnabled(
             self.update_report is not None
             and 0 <= index < len(self.update_report.candidates)
-            and not self.controller.busy
+            and not self._operation_busy()
         )
 
     def _view_installed(self) -> None:
@@ -863,28 +880,39 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _review(self, reviewed: ReviewedPlan) -> None:
         if self.pending_close:
+            self.controller.release_review()
+            return
+        if not self.controller.reviewing and not self.controller.reserve_review():
+            self.status.setText(
+                "Finish or cancel the current environment operation before reviewing another plan."
+            )
             return
         dialog = ReviewDialog(reviewed, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted and reviewed.plan.ready:
-            consent = dialog.consent()
-            if reviewed.plan.requires_consent and consent is None:
-                return
-            self.navigation.setCurrentRow(4)
-            if self.controller.execute(reviewed, consent):
-                for item in reviewed.plan.items:
-                    placeholder = f"pending-{reviewed.plan.id}-{item.package_id}"
-                    self._event(
-                        ProgressEvent(
-                            placeholder,
-                            item.package_id,
-                            OperationState.QUEUED,
-                            "Waiting for this plan's preceding operations.",
+        try:
+            if dialog.exec() == QDialog.DialogCode.Accepted and reviewed.plan.ready:
+                consent = dialog.consent()
+                if reviewed.plan.requires_consent and consent is None:
+                    return
+                self.navigation.setCurrentRow(4)
+                if self.controller.execute(reviewed, consent):
+                    for item in reviewed.plan.items:
+                        placeholder = f"pending-{reviewed.plan.id}-{item.package_id}"
+                        self._event(
+                            ProgressEvent(
+                                placeholder,
+                                item.package_id,
+                                OperationState.QUEUED,
+                                "Waiting for this plan's preceding operations.",
+                            )
                         )
-                    )
-                    self.pending_packages[item.package_id] = placeholder
-        else:
-            self.status.setText("Plan review closed. No package changes were started.")
-        dialog.deleteLater()
+                        self.pending_packages[item.package_id] = placeholder
+            else:
+                self.status.setText(
+                    "Plan review closed. No package changes were started."
+                )
+        finally:
+            self.controller.release_review()
+            dialog.deleteLater()
 
     @Slot(object)
     def _event(self, event: ProgressEvent) -> None:
@@ -1011,8 +1039,16 @@ class MainWindow(QMainWindow):
         self.pending_close = True
         self.search_timer.stop()
         self.search_controller.cancel()
-        if self.controller.busy or self.search_controller.busy:
+        if (
+            self.controller.busy
+            or self.search_controller.busy
+            or self.environment.controller.busy
+        ):
             self._cancel()
             event.ignore()
         else:
             event.accept()
+
+    @Slot(bool)
+    def _environment_busy(self, busy: bool) -> None:
+        self._busy(self.controller.busy)

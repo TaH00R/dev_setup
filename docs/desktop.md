@@ -125,3 +125,48 @@ The desktop bootstrap also opened and exited with status 0 under offscreen Qt
 using a timed application quit. Local documentation links have no missing
 targets. Native developer-tool installs, real administrator prompts, packaged
 desktop executables, and remote OS CI were not run.
+
+## Presets and runtime reviews
+
+Presets contains the ten starter roles, each with an editable list of reviewed
+catalog tools. These are starter collections, not promises to install a complete
+language stack. Save a named collection for the current session, or export a JSON
+manifest to keep it. Export requires a new file and refuses to overwrite existing
+files. Import validates the manifest through the core service; unknown package
+IDs remain visible so they can be resolved explicitly.
+
+Preview resolves the selected packages for the current OS, architecture and
+backend. It lists unsupported items, source identifiers and exact arguments.
+Unsupported items block package execution. When the preview is ready, **Review
+package operations** opens the existing package consent dialog. Editing the
+collection invalidates its previous preview. Runtime and project configuration
+choices travel with the manifest and require their own reviews on Runtimes.
+
+Runtimes supports exact versions through an already installed mise (Python,
+Node.js and Go), uv (Python), or rustup (Rust). Native discovery, installation and
+verification run in background workers. The review shows the actual arguments,
+source, privileges and manager caveats before consent. Runtime managers are not
+automatically installed. Java via mise, SDKMAN!, Conda and Mamba remain staged.
+
+Choose an existing project directory to review `.python-version`,
+`rust-toolchain.toml`, or an owned minimal `mise.toml`. Each file review shows
+current and proposed content. Only the exact approved plan can be applied; the
+core rejects stale files and unmanaged TOML. The optional `.dev-setup.env` contains
+only reviewed project-relative path variables and is not loaded automatically.
+These controls do not change global PATH or shell startup files.
+
+Package and runtime operations reserve a shared execution gate through consent
+and execution. Cancellation is best effort; closing the window waits for workers
+to finish rather than destroying a running thread.
+
+Local validation on Windows, 2026-11-12:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.gui.test_environments tests.gui.test_desktop tests.gui.test_live_search -q
+```
+
+All 37 tests passed, including nine environment flows using mocked native work
+and temporary project files. Offscreen Presets and Runtimes renders were inspected
+at 1200×800 with application-loaded system fonts; no generated images were added
+to the repository. Real native runtime installations and other OS window systems
+remain unverified locally.

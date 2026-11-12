@@ -64,10 +64,14 @@ def launch() -> int:
     # Keep the window/controller alive until their cancellable worker has stopped.
     window.pending_close = True
     window.controller.cancel()
+    window.environment.controller.cancel()
     window.search_controller.cancel()
     job = window.controller.job
     if job is not None:
         job.wait()
+    environment_job = window.environment.controller.job
+    if environment_job is not None:
+        environment_job.wait()
     search_job = window.search_controller.job
     if search_job is not None:
         search_job.wait()

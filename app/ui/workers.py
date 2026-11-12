@@ -94,14 +94,21 @@ class Controller(QObject):
         self.kind = ""
         self.value: object = None
         self.failure = ""
+        self.reviewing = False
+        self.external_busy: Callable[[], bool] = lambda: False
 
     @property
     def busy(self) -> bool:
-        return self.job is not None
+        return self.job is not None or self.reviewing
 
-    def start(self, kind: str, task: Task) -> bool:
-        if self.busy:
+    def start(self, kind: str, task: Task, *, from_review: bool = False) -> bool:
+        if (
+            self.job is not None
+            or (self.reviewing and not from_review)
+            or self.external_busy()
+        ):
             return False
+        self.reviewing = False
         self.kind, self.value, self.failure = kind, None, ""
         job = Job(task, self)
         self.job = job
@@ -134,7 +141,10 @@ class Controller(QObject):
         kind, value, failure = self.kind, self.value, self.failure
         self.job = None
         self.value = None
-        self.busy_changed.emit(False)
+        self.reviewing = (
+            not failure and kind == "plan" and isinstance(value, ReviewedPlan)
+        )
+        self.busy_changed.emit(self.busy)
         if failure:
             self.error.emit(failure)
         elif kind == "refresh":
@@ -151,6 +161,18 @@ class Controller(QObject):
     def cancel(self) -> None:
         if self.job:
             self.job.cancelled.set()
+
+    def reserve_review(self) -> bool:
+        if self.busy or self.external_busy():
+            return False
+        self.reviewing = True
+        self.busy_changed.emit(True)
+        return True
+
+    def release_review(self) -> None:
+        if self.reviewing:
+            self.reviewing = False
+            self.busy_changed.emit(self.busy)
 
     def refresh(self) -> bool:
         return self.start(
@@ -177,4 +199,5 @@ class Controller(QObject):
             lambda cancel, event, output: self.services.operations.execute(
                 reviewed, consent=consent, cancel=cancel, observe=event, logs=output
             ),
+            from_review=True,
         )

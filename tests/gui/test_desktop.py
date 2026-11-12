@@ -163,7 +163,7 @@ class DesktopTests(unittest.TestCase):
         )
 
     def test_all_navigation_pages_work(self):
-        self.assertEqual(self.window.navigation.count(), 7)
+        self.assertEqual(self.window.navigation.count(), 9)
         for index, name in enumerate(self.window.pages):
             self.window.navigation.setCurrentRow(index)
             self.assertEqual(self.window.heading.text(), name)

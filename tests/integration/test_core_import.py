@@ -34,7 +34,7 @@ def deny_process(event, args):
 
 sys.addaudithook(deny_process)
 from pathlib import Path
-for name in ('models', 'system', 'package_managers', 'services'):
+for name in ('models', 'system', 'package_managers', 'runtimes', 'services'):
     package = importlib.import_module(name)
     assert Path(package.__file__) == Path(sys.argv[1]) / name / '__init__.py'
     for module in pkgutil.walk_packages(package.__path__, package.__name__ + '.'):

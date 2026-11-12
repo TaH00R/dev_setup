@@ -64,6 +64,7 @@ models/              Package, inventory, plan, and operation records
 services/            Inventory, planning, consent, and execution
   catalog/           Catalog loading, validation, and curated search
 package_managers/    Native adapters and their inspection code
+runtimes/            Version-manager adapters and reviewed runtime operations
 system/              Platform detection and the safe command runner
 catalog/             Reviewed JSON package definitions, grouped by category
 tests/
@@ -124,8 +125,12 @@ fake Scoop script; they never install developer tools. Native installation,
 elevation, packaging, and clean-machine behavior still need disposable-system
 coverage. CI is configured for Python 3.10–3.14 on Windows, macOS, and Linux.
 
-The next milestones are runtime managers, portable presets, production hardening,
-and release packaging. More native inventory readers are also
+Presets and Runtimes now provide portable package collections, exact runtime
+versions through installed mise, uv, and rustup, and reviewed project configuration.
+Importing a manifest shows unsupported items before execution; runtime and file
+changes have their own review. See the [environment guide](docs/environments.md).
+
+The next milestone is production hardening and release packaging. More native inventory readers are also
 needed to enable the remaining backends. The existing Windows build workflow
 still produces a CLI preview; desktop packaging belongs to the release milestone.
 
