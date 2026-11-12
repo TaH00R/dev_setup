@@ -1,6 +1,7 @@
 """Thin desktop widgets: render service state and send explicit user intent."""
 
 from collections import OrderedDict
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl, Slot
 from PySide6.QtGui import QCloseEvent, QDesktopServices
@@ -19,9 +20,11 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMessageBox,
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QSplitter,
     QStackedWidget,
@@ -33,10 +36,12 @@ from PySide6.QtWidgets import (
 
 from models.catalog import Package
 from models.discovery import LivePackage
+from models.environment import RuntimeAudit
 from models.operations import OperationState, ProgressEvent
 from models.package import PackageVersion
 from models.planning import OperationAction
 from models.specs import InstallSpec
+from persistence.store import DesktopSettings
 from services.desktop import (
     DesktopServices,
     DesktopSnapshot,
@@ -44,12 +49,14 @@ from services.desktop import (
     UpdateReport,
 )
 from services.discovery import SearchSnapshot
-from services.records import ExecutionReport, PackageRequest, ReviewedPlan
+from services.records import AuditRecord, ExecutionReport, PackageRequest, ReviewedPlan
 from system.commands import OutputSnapshot
 
 from .environments import EnvironmentPages
 from .review import ReviewDialog
 from .search import SearchController
+from .state import StateController, StoredState
+from .support import SupportControls
 from .theme import apply_theme
 from .workers import Controller
 
@@ -94,9 +101,24 @@ class MainWindow(QMainWindow):
         "Runtimes",
     )
 
-    def __init__(self, services: DesktopServices, *, auto_refresh: bool = True) -> None:
+    def __init__(
+        self,
+        services: DesktopServices,
+        *,
+        auto_refresh: bool = True,
+        state_path: Path | None = None,
+    ) -> None:
         super().__init__()
         self.services = services
+        self.state_path = state_path
+        self.state_controller = StateController(self)
+        self.state_loading = state_path is not None
+        self.restoring_state = False
+        self.clearing_history = False
+        self.state_controller.loaded.connect(self._state_loaded)
+        self.state_controller.saved.connect(self._state_saved)
+        self.state_controller.error.connect(self._state_error)
+        self.state_controller.busy_changed.connect(self._state_busy)
         self.controller = Controller(services, self)
         self.search_controller = SearchController(services.discovery, self)
         self.snapshot: DesktopSnapshot | None = None
@@ -143,13 +165,18 @@ class MainWindow(QMainWindow):
         self._history()
         self._settings()
         self.environment = EnvironmentPages(
-            services, lambda: not self.controller.busy, self
+            services,
+            lambda: not self.controller.busy and not self.clearing_history,
+            self,
         )
         self.stack.addWidget(self.environment.presets_page)
         self.stack.addWidget(self.environment.runtimes_page)
         self.environment.package_review.connect(self._review)
+        self.environment.runtime_audit.connect(self._runtime_audit)
         self.environment.busy_changed.connect(self._environment_busy)
-        self.controller.external_busy = lambda: self.environment.controller.busy
+        self.controller.external_busy = lambda: (
+            self.environment.controller.busy or self.clearing_history
+        )
         footer = QHBoxLayout()
         self.status = label(
             "Ready. Refresh inventory to inspect installed packages.", "muted"
@@ -184,6 +211,12 @@ class MainWindow(QMainWindow):
         self.search_controller.error.connect(self.search_summary.setText)
         self._search()
         self._selection_buttons()
+        self.theme.currentIndexChanged.connect(self._preferences_changed)
+        self.debounce.valueChanged.connect(self._preferences_changed)
+        self.live_enabled.toggled.connect(self._preferences_changed)
+        if state_path is not None:
+            self._settings_enabled(False)
+            self.state_controller.startup(state_path)
         if auto_refresh:
             QTimer.singleShot(0, self.controller.refresh)
 
@@ -399,12 +432,13 @@ class MainWindow(QMainWindow):
 
     def _history(self) -> None:
         layout = self._page()
-        layout.addWidget(
-            label(
-                "Session history contains approval and result metadata. It is not saved after closing the app.",
-                "muted",
-            )
+        self.history_note = label(
+            "History saves approval and result metadata locally; process output stays in this session."
+            if self.state_path is not None
+            else "Session history contains approval and result metadata. It is not saved after closing the app.",
+            "muted",
         )
+        layout.addWidget(self.history_note)
         self.history_table = table(
             ("Package / action", "Source", "Version", "Result", "Finished (UTC)")
         )
@@ -457,20 +491,44 @@ class MainWindow(QMainWindow):
             )
         )
         layout.addWidget(sources)
-        privacy = QGroupBox("Session privacy")
+        privacy = QGroupBox("Privacy and history")
         privacy_layout = QVBoxLayout(privacy)
         privacy_layout.addWidget(
             label(
-                "Settings and history are kept in memory. Native administrator prompts handle passwords. No telemetry is collected."
+                "Process output stays in this session. No telemetry is collected."
+                if self.state_path is not None
+                else "Settings and history are kept in memory. Native administrator prompts handle passwords. No telemetry is collected."
             )
         )
-        self.clear_button = QPushButton("Clear session history and logs")
+        self.persistence_note = label(
+            "Loading saved preferences…"
+            if self.state_loading
+            else "Session-only mode.",
+            "muted",
+        )
+        privacy_layout.addWidget(self.persistence_note)
+        self.clear_button = QPushButton(
+            "Clear saved history and session logs"
+            if self.state_path is not None
+            else "Clear session history and logs"
+        )
         self.clear_button.clicked.connect(self._clear)
         privacy_layout.addWidget(
             self.clear_button, alignment=Qt.AlignmentFlag.AlignLeft
         )
         layout.addWidget(privacy)
+        self.support = SupportControls(self.services.host, self)
+        self.support.busy_changed.connect(self._support_busy)
+        layout.addWidget(self.support.group)
         layout.addStretch()
+        page = self.stack.widget(self.stack.count() - 1)
+        assert page is not None
+        self.stack.removeWidget(page)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(page)
+        self.stack.addWidget(scroll)
 
     @Slot(int)
     def _navigate(self, index: int) -> None:
@@ -479,6 +537,8 @@ class MainWindow(QMainWindow):
 
     def _search(self, *, deferred: bool = False, force: bool = False) -> None:
         self.search_timer.stop()
+        if self.state_loading or self.pending_close:
+            return
         self.search_controller.request(
             self.search.text(),
             category=self.category.currentData(),
@@ -706,15 +766,21 @@ class MainWindow(QMainWindow):
             self.controller.preview(request)
 
     def _operation_busy(self) -> bool:
-        return self.controller.busy or self.environment.controller.busy
+        return (
+            self.controller.busy
+            or self.environment.controller.busy
+            or self.clearing_history
+        )
 
     @Slot(bool)
     def _busy(self, busy: bool) -> None:
-        busy = busy or self.environment.controller.busy
-        self.environment.set_external_busy(self.controller.busy)
+        busy = busy or self.environment.controller.busy or self.clearing_history
+        self.environment.set_external_busy(
+            self.controller.busy or self.clearing_history
+        )
         self.refresh_button.setEnabled(not busy)
         self.check_updates.setEnabled(not busy)
-        self.clear_button.setEnabled(not busy)
+        self.clear_button.setEnabled(not busy and not self.state_loading)
         self.cancel_button.setVisible(busy)
         self.progress.setVisible(busy)
         self.progress.setRange(0, 0 if busy else 100)
@@ -737,6 +803,7 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _snapshot(self, snapshot: DesktopSnapshot) -> None:
         self.snapshot = snapshot
+        self.support.availability = snapshot.backends
         self.update_report = None
         self.update_table.setRowCount(0)
         self.update_note.setText("Inventory refreshed. Check for updates when ready.")
@@ -968,6 +1035,9 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _completed(self, report: ExecutionReport) -> None:
+        self._merge_history(report.audit)
+        if self.state_path is not None and report.audit:
+            self.state_controller.append_audit(report.audit)
         for operation in report.operations:
             if operation.result:
                 result = operation.result
@@ -1022,6 +1092,30 @@ class MainWindow(QMainWindow):
         )
 
     def _clear(self) -> None:
+        if self._operation_busy() or self.state_loading or self.clearing_history:
+            return
+        if self.state_path is not None:
+            if self.state_controller.busy:
+                self.persistence_note.setText(
+                    "Wait for saved history to finish before clearing it."
+                )
+                return
+            answer = QMessageBox.question(
+                self,
+                "Clear saved history?",
+                "Permanently remove saved approval/result history and current session logs? Installed tools are unaffected.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            self.clearing_history = True
+            self._busy(self.controller.busy)
+            self.state_controller.clear_history()
+            return
+        self._clear_session()
+
+    def _clear_session(self) -> None:
         self.controller.history.clear()
         self.operation_rows.clear()
         self.pending_packages.clear()
@@ -1029,7 +1123,7 @@ class MainWindow(QMainWindow):
         self.queue_table.setRowCount(0)
         self.log_view.clear()
         self._history_rows()
-        self.status.setText("Session history and logs cleared.")
+        self.status.setText("History and session logs cleared.")
 
     @Slot(str)
     def _error(self, message: str) -> None:
@@ -1043,12 +1137,110 @@ class MainWindow(QMainWindow):
             self.controller.busy
             or self.search_controller.busy
             or self.environment.controller.busy
+            or self.state_controller.busy
+            or self.support.controller.busy
         ):
             self._cancel()
+            self.support.controller.cancel()
             event.ignore()
         else:
+            self.state_controller.close()
             event.accept()
 
     @Slot(bool)
     def _environment_busy(self, busy: bool) -> None:
         self._busy(self.controller.busy)
+
+    def _settings_enabled(self, enabled: bool) -> None:
+        for widget in (
+            self.theme,
+            self.debounce,
+            self.live_search_setting,
+            self.live_enabled,
+        ):
+            widget.setEnabled(enabled)
+        self.clear_button.setEnabled(enabled and not self._operation_busy())
+
+    def _preferences_changed(self) -> None:
+        if self.state_path is None or self.state_loading or self.restoring_state:
+            return
+        self.state_controller.save_settings(
+            DesktopSettings(
+                "dark" if self.theme.currentIndex() == 1 else "light",
+                self.debounce.value(),
+                self.live_enabled.isChecked(),
+            )
+        )
+
+    def _merge_history(self, records: tuple[AuditRecord, ...]) -> None:
+        merged = {record.operation_id: record for record in records}
+        merged.update(
+            (record.operation_id, record) for record in self.controller.history
+        )
+        ordered = sorted(merged.values(), key=lambda record: record.finished_at)
+        self.controller.history.clear()
+        self.controller.history.extend(ordered)
+
+    def _runtime_audit(self, audit: object) -> None:
+        if not isinstance(audit, RuntimeAudit):
+            return
+        record = AuditRecord(
+            audit.operation_id,
+            "runtime-" + audit.runtime,
+            "install",
+            audit.manager,
+            "runtime-" + audit.manager,
+            audit.version,
+            audit.state.value,
+            audit.approved_at,
+            audit.finished_at,
+            audit.exit_code,
+        )
+        self._merge_history((record,))
+        self._history_rows()
+        if self.state_path is not None:
+            self.state_controller.append_audit((record,))
+
+    def _state_loaded(self, snapshot: object) -> None:
+        if not isinstance(snapshot, StoredState):
+            return
+        self.restoring_state = True
+        settings = snapshot.settings
+        self.theme.setCurrentIndex(1 if settings.theme == "dark" else 0)
+        self.debounce.setValue(settings.search_delay_ms)
+        self.live_enabled.setChecked(settings.live_search)
+        self.restoring_state = False
+        self.state_loading = False
+        self._settings_enabled(True)
+        self._merge_history(tuple(reversed(snapshot.history)))
+        self._history_rows()
+        self.persistence_note.setText(
+            "Settings and output-free history are saved locally."
+        )
+        self._search()
+
+    def _state_saved(self, kind: str) -> None:
+        if kind == "clear":
+            self._clear_session()
+            self.clearing_history = False
+            self._busy(self.controller.busy)
+        self.persistence_note.setText(
+            "Settings and output-free history are saved locally."
+        )
+
+    def _state_error(self, message: str) -> None:
+        self.state_loading = False
+        self.clearing_history = False
+        self.persistence_note.setText("Persistence warning: " + message)
+        self._settings_enabled(True)
+        self._busy(self.controller.busy)
+        if not self.pending_close:
+            self._search()
+
+    def _state_busy(self, busy: bool) -> None:
+        if not busy and self.pending_close:
+            QTimer.singleShot(0, self.close)
+
+    def _support_busy(self, busy: bool) -> None:
+        if not busy and self.pending_close:
+            QTimer.singleShot(0, self.close)

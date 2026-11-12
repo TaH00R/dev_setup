@@ -196,6 +196,7 @@ class EnvironmentController(QObject):
 
 class EnvironmentPages(QObject):
     package_review = Signal(object)
+    runtime_audit = Signal(object)
     busy_changed = Signal(bool)
 
     def __init__(
@@ -750,6 +751,8 @@ class EnvironmentPages(QObject):
         elif kind == "config-preview" and isinstance(value, ConfigPlan):
             self._review_config(value)
         elif kind == "runtime-execute" and isinstance(value, RuntimeResult):
+            if value.audit is not None:
+                self.runtime_audit.emit(value.audit)
             self.runtime_status.setText(
                 f"{value.state.value}: {value.message}"
                 + (

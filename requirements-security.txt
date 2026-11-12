@@ -1,0 +1,2 @@
+# Optional release-signature verification; imported only by signed-update tooling.
+cryptography>=46,<51

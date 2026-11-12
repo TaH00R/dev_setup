@@ -1,5 +1,6 @@
 # Virtual Environments
 .venv/
+.release-venv/
 venv/
 env/
 

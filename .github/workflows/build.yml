@@ -1,62 +1,41 @@
-name: Build Dev Setup CLI preview
+name: Desktop preview bundles
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
-  release:
-    types: [created]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    runs-on: windows-latest
-
+  native-bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.10"
-
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install "pyinstaller>=6,<7"
-
-    - name: Build EXE with PyInstaller
-      run: |
-        python -m PyInstaller --onefile --name dev-setup-cli --add-data "catalog:catalog" --add-data "package_managers/scoop_bridge.ps1:package_managers" main.py
-
-    - name: Check bundled catalog
-      run: |
-        .\dist\dev-setup-cli.exe catalog validate
-        .\dist\dev-setup-cli.exe catalog search git
-
-    - name: Upload EXE artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: dev-setup-cli-preview
-        path: dist/dev-setup-cli.exe
-
-  release-upload:
-    needs: build
-    # Only run if this workflow was triggered by a release AND a tag exists
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: windows-latest
-
-    steps:
-    - name: Download built EXE
-      uses: actions/download-artifact@v4
-      with:
-        name: dev-setup-cli-preview
-
-    - name: Upload EXE to Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: dev-setup-cli.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Qt Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon0 libxcb-cursor0
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-gui.txt -r requirements-security.txt "pyinstaller>=6.22,<7"
+      - name: Migration, release verification and diagnostics checks
+        run: python -m unittest tests.unit.test_persistence tests.unit.test_updates tests.unit.test_diagnostics tests.integration.test_packaging
+      - name: Build desktop and run bounded bundle checks
+        run: python scripts/build_desktop.py --smoke-test --archive
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DevSetup-preview-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            dist/DevSetup-*.zip
+            dist/DevSetup-*.tar.gz
+            dist/DevSetup-*.json
+          if-no-files-found: error

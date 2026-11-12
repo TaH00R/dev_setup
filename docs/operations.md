@@ -137,8 +137,10 @@ system changes can remain. No rollback is implemented or claimed.
 `ExecutionReport` includes operation results and in-memory audit records with
 package/action/backend/source/version, approval time, terminal time and status.
 Audit records exclude command output, environment values and credentials.
-Persistent history is step 10. The step 7 [desktop UI](desktop.md) now supplies
-explicit review/consent and background workers for these services.
+The [desktop UI](desktop.md) persists these metadata records through the
+[SQLite store](persistence.md), and supplies explicit review/consent and
+background workers for these services. Direct service callers choose whether
+to persist the returned records.
 
 Native format references: [Homebrew JSON queries](https://docs.brew.sh/Querying-Brew),
 [APT simulation and version selection](https://manpages.ubuntu.com/manpages/noble/man8/apt-get.8.html),

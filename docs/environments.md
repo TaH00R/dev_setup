@@ -140,3 +140,11 @@ all-tools form, which this adapter does not request. Runtime failures retain the
 installation command result even when the subsequent verification fails. An
 unexpected executor error becomes a safe structured `unknown` failure without
 displaying exception text.
+
+Approved runtime executions also return an output-free `RuntimeAudit` with the
+unique operation ID, reviewed plan ID, manager, runtime, exact version, terminal
+state, approval/completion timestamps and native installation exit code. The
+desktop maps this metadata into persistent history. Missing, declined or
+mismatched consent creates no approved-operation audit; approved skips and
+failures remain auditable. Command stdout, stderr and project file contents are
+never part of this record.

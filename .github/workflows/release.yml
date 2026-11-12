@@ -1,0 +1,109 @@
+name: Prepare signed release artifacts
+
+# Manual preparation only; no release is published. Provisioned signing hosts
+# and the protected release environment are external release prerequisites.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version matching app.__version__ and the checked-out vVERSION tag
+        required: true
+        type: string
+      sequence:
+        description: Positive monotonic release sequence
+        required: true
+        type: number
+      base_url:
+        description: Reviewed HTTPS directory for later publication
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    environment: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            labels: [self-hosted, Windows, release-signing]
+          - platform: macos
+            labels: [self-hosted, macOS, release-signing]
+          - platform: linux
+            labels: [self-hosted, Linux, release-signing]
+    runs-on: ${{ matrix.labels }}
+    env:
+      EXPECTED_VERSION: ${{ inputs.version }}
+      DEV_SETUP_WINDOWS_CERT_SHA1: ${{ secrets.DEV_SETUP_WINDOWS_CERT_SHA1 }}
+      DEV_SETUP_TIMESTAMP_URL: ${{ vars.DEV_SETUP_TIMESTAMP_URL }}
+      DEV_SETUP_MAC_SIGN_IDENTITY: ${{ secrets.DEV_SETUP_MAC_SIGN_IDENTITY }}
+      DEV_SETUP_MAC_NOTARY_PROFILE: ${{ secrets.DEV_SETUP_MAC_NOTARY_PROFILE }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the matching stable tag
+        shell: python
+        run: |
+          import os
+          from scripts.release_manifest import release_version
+          version = release_version(os.environ['EXPECTED_VERSION'])
+          if os.environ['GITHUB_REF'] != 'refs/tags/v' + version:
+              raise SystemExit('Release preparation requires the matching vVERSION tag.')
+      - name: Isolated build dependencies
+        shell: python
+        run: |
+          import subprocess, sys
+          subprocess.run([sys.executable, '-m', 'venv', '.release-venv'], check=True)
+      - name: Build and sign on the native provisioned host
+        shell: python
+        run: |
+          import os, pathlib, subprocess
+          python = str(pathlib.Path('.release-venv') / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python'))
+          subprocess.run([python, '-m', 'pip', 'install', '-r', 'requirements-gui.txt', '-r', 'requirements-security.txt', 'pyinstaller>=6.22,<7'], check=True)
+          subprocess.run([python, 'scripts/build_desktop.py', '--signed', '--release-version', os.environ['EXPECTED_VERSION'], '--smoke-test', '--archive'], check=True)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-native-${{ matrix.platform }}
+          path: |
+            dist/DevSetup-*.zip
+            dist/DevSetup-*.tar.gz
+            dist/DevSetup-*.json
+          if-no-files-found: error
+  release-feed:
+    needs: native
+    environment: release
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - run: python -m pip install -r requirements-security.txt
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: signed-native-*
+          merge-multiple: true
+          path: release-artifacts
+      - name: Sign the reviewed release manifest
+        env:
+          DEV_SETUP_RELEASE_SIGNING_KEY: ${{ secrets.DEV_SETUP_RELEASE_SIGNING_KEY }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+          RELEASE_SEQUENCE: ${{ inputs.sequence }}
+          RELEASE_BASE_URL: ${{ inputs.base_url }}
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          from scripts.release_manifest import produce
+          directory = Path('release-artifacts')
+          manifest, signature = produce(directory, os.environ['EXPECTED_VERSION'], int(os.environ['RELEASE_SEQUENCE']), os.environ['RELEASE_BASE_URL'])
+          for name, data in [('release.json', manifest), ('release.sig', signature)]:
+              with (directory / name).open('xb') as stream:
+                  stream.write(data)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-signed-release
+          path: release-artifacts/
+          if-no-files-found: error

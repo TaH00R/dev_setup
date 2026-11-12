@@ -65,6 +65,7 @@ services/            Inventory, planning, consent, and execution
   catalog/           Catalog loading, validation, and curated search
 package_managers/    Native adapters and their inspection code
 runtimes/            Version-manager adapters and reviewed runtime operations
+persistence/         SQLite preferences, audit metadata, and bounded event logs
 system/              Platform detection and the safe command runner
 catalog/             Reviewed JSON package definitions, grouped by category
 tests/
@@ -74,6 +75,8 @@ tests/
   fixtures/          Shared synthetic test data
 resources/           Project assets
 docs/                Architecture, API guides, and platform support
+scripts/             Desktop bundle, signing, and release-manifest tooling
+packaging/           Native desktop bundle specification
 ```
 
 The core stays independent of Qt. Adapters own native commands; catalog files
@@ -81,14 +84,15 @@ contain metadata rather than scripts. Plans expose the selected source, command,
 privileges, and expected effects before approval. Operations report failures and
 verify native inventory before declaring success.
 
-The desktop includes Dashboard, Explore, Installed, Updates, Queue, History, and
-Settings. Search combines curated tools with live results from detected managers.
+The desktop includes Dashboard, Explore, Installed, Updates, Queue, History,
+Settings, Presets, and Runtimes. Search combines curated tools with live results from detected managers.
 Live results retain source/native IDs and are browse-only until a reviewed mapping
 is available. Searches are debounced, cached, cancellable, and can be disabled in
 Settings; native searches may access the network. See the [discovery guide](docs/discovery.md).
 Install, remove, and update actions for curated tools open a
-plan review; administrator prompts need a separate approval. Settings, history,
-and logs last for the current session. Windows can browse the catalog, but native
+plan review; administrator prompts need a separate approval. Settings and audit
+history are saved locally in SQLite; process output stays in the current session.
+Storage failures leave the current session usable and show a warning. Windows can browse the catalog, but native
 package management there is not enabled yet. See the [desktop guide](docs/desktop.md)
 for the workflow and current limits.
 
@@ -122,7 +126,7 @@ python -m mypy
 
 Tests mock package operations. Process tests use disposable Python programs and a
 fake Scoop script; they never install developer tools. Native installation,
-elevation, packaging, and clean-machine behavior still need disposable-system
+elevation and clean-machine behavior still need disposable-system
 coverage. CI is configured for Python 3.10–3.14 on Windows, macOS, and Linux.
 
 Presets and Runtimes now provide portable package collections, exact runtime
@@ -130,9 +134,23 @@ versions through installed mise, uv, and rustup, and reviewed project configurat
 Importing a manifest shows unsupported items before execution; runtime and file
 changes have their own review. See the [environment guide](docs/environments.md).
 
-The next milestone is production hardening and release packaging. More native inventory readers are also
-needed to enable the remaining backends. The existing Windows build workflow
-still produces a CLI preview; desktop packaging belongs to the release milestone.
+Desktop preview bundles use PyInstaller. After installing the GUI and security
+requirements plus `pyinstaller>=6.22,<7`, run:
+
+```sh
+python scripts/build_desktop.py --smoke-test --archive
+```
+
+The output stays in ignored `dist/` and `build/` directories. Preview bundles are
+unsigned. CI is configured to build on all three operating systems; production
+signing, notarization, and clean-machine qualification still require release
+infrastructure and evidence. The [release guide](docs/release.md) records those
+gates. Application update checks are manual and disabled until a trusted signed
+channel is configured; downloaded releases are never installed automatically.
+
+More native inventory readers are needed to enable the remaining package
+backends. See the [persistence guide](docs/persistence.md) for storage, migration,
+diagnostics, and privacy details.
 
 Read the [development guide](docs/development.md), [architecture](docs/architecture.md),
 and [operation service guide](docs/operations.md) before changing the core. For

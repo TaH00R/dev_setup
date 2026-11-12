@@ -4,6 +4,7 @@ from threading import Event
 from uuid import uuid4
 
 from models.environment import (
+    RuntimeAudit,
     RuntimeConsent,
     RuntimePlan,
     RuntimeRequest,
@@ -11,6 +12,7 @@ from models.environment import (
 )
 from models.errors import ErrorCode, OperationError
 from models.operations import OperationState
+from models.planning import utc_now
 from models.platform import Platform
 from package_managers.base import AdapterError
 from runtimes.adapters import RuntimeManager, default_adapters
@@ -89,6 +91,24 @@ class RuntimeService:
                 OperationState.CANCELLED, "Runtime installation was not approved."
             )
         result: CommandResult | None = None
+        operation_id = str(uuid4())
+
+        def finish(
+            state: OperationState, message: str, error: OperationError | None = None
+        ) -> RuntimeResult:
+            audit = RuntimeAudit(
+                operation_id,
+                plan.id,
+                plan.request.manager,
+                plan.request.runtime,
+                plan.request.version,
+                state,
+                consent.approved_at,
+                utc_now(),
+                result.exit_code if result else None,
+            )
+            return RuntimeResult(state, message, result, error, audit)
+
         try:
             adapter = self._adapter(plan.request)
             command = adapter.install(plan.request)
@@ -99,7 +119,7 @@ class RuntimeService:
                 )
             installed = self._installed(adapter, plan.request, cancel)
             if plan.request.version in installed:
-                return RuntimeResult(
+                return finish(
                     OperationState.SKIPPED,
                     "Requested runtime version is already installed and verified.",
                 )
@@ -120,7 +140,7 @@ class RuntimeService:
                     if error.code == ErrorCode.CANCELLED
                     else OperationState.FAILED
                 )
-                return RuntimeResult(state, error.message, result, error)
+                return finish(state, error.message, error)
             if plan.request.version not in self._installed(
                 adapter, plan.request, cancel
             ):
@@ -128,10 +148,9 @@ class RuntimeService:
                     ErrorCode.VERIFICATION_FAILED,
                     "Native manager did not report the selected version after installation.",
                 )
-            return RuntimeResult(
+            return finish(
                 OperationState.SUCCEEDED,
                 "Selected runtime version was installed and verified.",
-                result,
             )
         except AdapterError as exc:
             state = (
@@ -139,10 +158,10 @@ class RuntimeService:
                 if exc.error.code == ErrorCode.CANCELLED
                 else OperationState.FAILED
             )
-            return RuntimeResult(state, exc.error.message, result, exc.error)
+            return finish(state, exc.error.message, exc.error)
         except Exception:
             error = OperationError(
                 ErrorCode.UNKNOWN,
                 "Runtime execution encountered an unexpected error; inspect the retained command result and review before retrying.",
             )
-            return RuntimeResult(OperationState.FAILED, error.message, result, error)
+            return finish(OperationState.FAILED, error.message, error)

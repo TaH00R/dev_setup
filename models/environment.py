@@ -2,12 +2,14 @@
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from models._validation import identifier, text
 from models.errors import OperationError
 from models.operations import OperationState
 from models.package import PackageVersion
+from models.planning import aware_timestamp, utc_now
 from system.commands import Command, CommandResult
 
 
@@ -83,11 +85,48 @@ class RuntimePlan:
 class RuntimeConsent:
     plan: RuntimePlan = field(repr=False)
     confirmed: bool = False
+    approved_at: datetime = field(default_factory=utc_now)
 
     def __post_init__(self) -> None:
         if not isinstance(self.plan, RuntimePlan) or type(self.confirmed) is not bool:
             raise ValueError(
                 "Runtime consent requires an exact plan and explicit decision."
+            )
+        aware_timestamp(self.approved_at, "runtime approval time")
+
+
+@dataclass(frozen=True)
+class RuntimeAudit:
+    """Output-free record of one approved execution of an exact reviewed plan."""
+
+    operation_id: str
+    plan_id: str
+    manager: str
+    runtime: str
+    version: str
+    state: OperationState
+    approved_at: datetime
+    finished_at: datetime
+    exit_code: int | None
+
+    def __post_init__(self) -> None:
+        for value in (self.operation_id, self.plan_id, self.manager, self.runtime):
+            identifier(value, "runtime audit identifier")
+        exact_version(self.version)
+        if not isinstance(self.state, OperationState) or self.state not in {
+            OperationState.SUCCEEDED,
+            OperationState.FAILED,
+            OperationState.CANCELLED,
+            OperationState.SKIPPED,
+        }:
+            raise ValueError("Runtime audit requires a terminal state.")
+        aware_timestamp(self.approved_at, "runtime audit approval")
+        aware_timestamp(self.finished_at, "runtime audit completion")
+        if self.exit_code is not None and (
+            type(self.exit_code) is not int or not -(2**31) <= self.exit_code < 2**32
+        ):
+            raise ValueError(
+                "Runtime audit exit code must be a bounded native process status."
             )
 
 
@@ -97,6 +136,7 @@ class RuntimeResult:
     message: str
     command_result: CommandResult | None = field(default=None, repr=False)
     error: OperationError | None = None
+    audit: RuntimeAudit | None = None
 
 
 @dataclass(frozen=True)

@@ -24,6 +24,10 @@ PySide6 presentation layer in `app/ui/` and Qt-independent desktop aggregation
 in `services/desktop.py`.
 Step 8 adds Qt-independent discovery records/services and adapter-owned parsers,
 with an independent generation-aware search worker in `app/ui/search.py`.
+Step 9 adds distinct runtime adapters in `runtimes/` and strict portable manifests
+and reviewed project-file changes in `services/environments.py`. Step 10 adds
+SQLite settings/audit storage in `persistence/`, pinned signed-release verification
+and diagnostics services, and native bundle tooling under `scripts/` and `packaging/`.
 Importing core modules must not
 discover software, start a process,
 load Qt, or import `app`, the launcher, or `app/legacy/`.
@@ -62,6 +66,11 @@ Qt workers keep blocking tasks off the GUI thread and relay events safely.
 Persistent settings and sanitized history belong behind core persistence
 interfaces, not widget code. Runtime managers form a separate adapter family
 because project-local runtimes differ from system application installation.
+Database work runs through a dedicated Qt worker. Persisted history contains
+operation metadata rather than process output or environment values. Startup
+failures retain the existing database and allow the session to continue.
+Release verification never executes a downloaded artifact; a build without a
+pinned release channel makes no update request.
 
 `app/main.py` exposes read-only catalog commands through `python -m app` and
 the small root `main.py` launcher. `python -m app gui` lazily imports the PySide6

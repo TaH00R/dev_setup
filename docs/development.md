@@ -23,7 +23,7 @@ git diff --check
 Use `python -m ruff format .` to format the configured files. Ruff supplies
 formatting, syntax checks, unused-import checks, and import ordering. Mypy checks
 the application entry points and root-level `models/`, `system/`,
-`package_managers/`, and `services/` packages strictly. The older `app/legacy/`
+`package_managers/`, `runtimes/`, `persistence/`, `services/`, and release scripts strictly. The older `app/legacy/`
 code is excluded from strict typing during migration. Both checkers are
 development-only dependencies. Their version ranges bound major changes;
 this baseline does not provide a dependency lock.
@@ -34,6 +34,14 @@ typing and acceptance tests. Start the desktop with `python -m app gui`.
 GUI tests run offscreen and mock native operations; CI sets `QT_QPA_PLATFORM=offscreen`.
 The suite explicitly skips GUI checks when Qt is absent. See the
 [desktop guide](desktop.md) for workflow, worker lifecycle, and platform limits.
+
+`requirements-security.txt` adds cryptography for Ed25519 release-signature
+verification. It is included in development and frozen builds so signature tests
+and release tooling run; core imports and desktop browsing do not require it.
+The dependency is loaded only when verifying a configured signed release.
+Builds additionally need `pyinstaller>=6.22,<7`. Use
+`python scripts/build_desktop.py --smoke-test --archive` for a local preview;
+see the [release guide](release.md) for native signing and qualification gates.
 
 Formatting/linting cover the new core, domain tests, the core import test, CLI
 regression tests, catalog service/loader/schema tests, and `app/legacy/system_info.py`.

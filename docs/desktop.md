@@ -33,10 +33,11 @@ native readers are reviewed. The UI explains this rather than guessing support.
   new plan for review; checking never installs anything.
 - **Queue** shows active and waiting plan items, terminal results, exit status,
   structured errors and bounded stdout/stderr. Native output remains plain text.
-- **History** keeps up to 200 output-free audit records for the current session.
-- **Settings** changes the light/dark theme and search delay in memory, lists
-  reviewed sources, and can clear session history/logs. Native repository changes,
-  persistent preferences and configurable concurrency are not implemented.
+- **History** displays up to 200 output-free audit records loaded from local
+  storage, including approved runtime operations. SQLite retains up to 2,000.
+- **Settings** saves the light/dark theme, search delay and live-search preference,
+  lists reviewed sources, and can clear saved history and session logs after
+  confirmation. Native repository changes and configurable concurrency remain staged.
 
 ## Review and approval
 
@@ -76,8 +77,9 @@ Native process creation can delay cancellation on some systems.
 Queue display and logs retain at most 100 operations. Each stream retains the
 runner's bounded, sanitized snapshot (up to 65,536 characters plus a truncation
 marker). Audit records exclude output and environment values. Raw exceptions
-are not shown. Settings/history/logs are not persisted, and no application
-telemetry is collected. SQLite history and settings migration remain step 10.
+are not shown. Settings and audit metadata persist in SQLite; raw process output
+stays in the session. A separate bounded metadata-only event log records storage
+activity. No application telemetry is collected. See [persistence](persistence.md).
 
 ## Verification
 
@@ -170,3 +172,46 @@ and temporary project files. Offscreen Presets and Runtimes renders were inspect
 at 1200×800 with application-loaded system fonts; no generated images were added
 to the repository. Real native runtime installations and other OS window systems
 remain unverified locally.
+
+## Saved state and support tools
+
+The normal desktop launcher explicitly opens its OS user-state database. Settings
+and output-free approval/result history load and save through a serialized
+background worker. Theme, search delay and the live discovery preference survive
+a restart. Preference controls wait for startup loading; history merges with any
+operations completed during startup, retaining each operation once. A database
+failure shows a persistence warning while preserving the actual operation result
+and session history. Process output stays in memory.
+
+Clearing saved history requires an explicit Yes in a dialog whose default is No.
+The current view clears only after the durable delete succeeds. Installed tools
+are unaffected. Window close waits for queued database writes, discovery and
+support workers. Direct `MainWindow(..., state_path=None)` construction remains
+ephemeral for embedding, tests and packaging smoke checks.
+
+Settings also offers an opt-in diagnostics preview and export. The reviewed JSON
+contains only application/Python versions, normalized platform facts and backend
+availability from the most recent inventory refresh. Export exclusively creates
+a new file. It contains no local paths, process output or environment values.
+
+Application update checks are manual and run on a worker. This build has no
+configured trusted signed release channel, so the check reports that updates are
+disabled and performs no network transfer. There is no automatic installer or
+unverified download action. Release signing/channel publication remains a
+distribution task.
+
+The persistent desktop acceptance suite uses temporary databases/projects and
+mocked native/network work. It covers restart preferences and history, startup
+merging, failure preservation, default-No history clearing, diagnostic export
+refusal and worker-safe shutdown.
+
+Final desktop validation on Windows, 2026-11-12:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.gui.test_persistent_desktop tests.gui.test_state tests.gui.test_environments tests.gui.test_desktop tests.gui.test_live_search -q
+```
+
+All 52 tests passed. Focused Ruff and mypy checks passed for the desktop changes.
+The Settings page was inspected with offscreen Qt and loaded system fonts at
+1200×800; its longer support section scrolls. No production update channel,
+native installation, or packaged update execution was exercised by these tests.

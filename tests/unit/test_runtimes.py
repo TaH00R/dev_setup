@@ -131,6 +131,18 @@ class RuntimeTests(unittest.TestCase):
         )
         self.assertEqual(self.runner.run.call_count, 1)
 
+    def test_unapproved_or_mismatched_consent_never_creates_audit(self):
+        self.runner.run.return_value = self.result()
+        plan = self.service.preview(self.request)
+        for consent in (
+            None,
+            RuntimeConsent(plan, False),
+            RuntimeConsent(replace(plan, id="other-plan"), True),
+        ):
+            result = self.service.execute(plan, consent)
+            self.assertIsNone(result.audit)
+        self.assertEqual(self.runner.run.call_count, 1)
+
     def test_success_requires_inventory_verification_and_bound_approval(self):
         installed = json.dumps(
             [
@@ -154,15 +166,27 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(mutation.args[0].mutates)
         self.assertTrue(mutation.kwargs["approval"].permits(plan.command))
         self.assertIs(mutation.kwargs["cancel"], cancel)
+        self.assertEqual(result.audit.manager, "uv")
+        self.assertEqual(result.audit.runtime, "python")
+        self.assertEqual(result.audit.version, "3.13.2")
+        self.assertEqual(result.audit.plan_id, plan.id)
+        self.assertEqual(result.audit.state, OperationState.SUCCEEDED)
+        self.assertEqual(result.audit.exit_code, 0)
 
     def test_zero_exit_without_matching_version_is_failure(self):
         command_result = self.result()
         self.runner.run.return_value = command_result
         plan = self.service.preview(self.request)
-        result = self.service.execute(plan, RuntimeConsent(plan, True))
+        consent = RuntimeConsent(plan, True)
+        result = self.service.execute(plan, consent)
         self.assertEqual(result.error.code, ErrorCode.VERIFICATION_FAILED)
         self.assertIs(result.command_result, command_result)
         self.assertEqual(result.command_result.exit_code, 0)
+        self.assertEqual(result.audit.state, OperationState.FAILED)
+        self.assertEqual(result.audit.approved_at, consent.approved_at)
+        self.assertGreaterEqual(result.audit.finished_at, result.audit.approved_at)
+        self.assertEqual(result.audit.exit_code, 0)
+        self.assertNotIn("stdout", repr(result.audit))
 
     def test_unexpected_verification_exception_retains_command_result_without_leaking(
         self,
@@ -194,6 +218,23 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(
             all(not call.args[0].mutates for call in self.runner.run.call_args_list)
         )
+
+    def test_approved_skips_and_preinstallation_failures_have_unique_audit(self):
+        self.runner.run.return_value = self.result()
+        plan = self.service.preview(self.request)
+        # A changed reviewed command is refused after exact consent and still audited.
+        with patch.object(
+            self.adapter,
+            "install",
+            side_effect=AdapterError(
+                ErrorCode.MISSING_BACKEND, "Manager is no longer available."
+            ),
+        ):
+            first = self.service.execute(plan, RuntimeConsent(plan, True))
+            second = self.service.execute(plan, RuntimeConsent(plan, True))
+        self.assertEqual(first.audit.state, OperationState.FAILED)
+        self.assertIsNone(first.audit.exit_code)
+        self.assertNotEqual(first.audit.operation_id, second.audit.operation_id)
 
     def test_inventory_changes_require_new_review(self):
         self.runner.run.side_effect = [

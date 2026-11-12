@@ -40,6 +40,7 @@ def launch() -> int:
     from PySide6.QtWidgets import QApplication, QMessageBox
 
     from app.ui.main_window import MainWindow
+    from system.state import default_state_path
 
     application = QApplication.instance()
     if application is None:
@@ -57,7 +58,7 @@ def launch() -> int:
             "The local catalog or platform could not be loaded. Run catalog validation to inspect the issue.",
         )
         return 1
-    window = MainWindow(services)
+    window = MainWindow(services, state_path=default_state_path())
     window.show()
     status = application.exec()
     # An external application.quit() can bypass the normal close-event guard.
@@ -66,6 +67,7 @@ def launch() -> int:
     window.controller.cancel()
     window.environment.controller.cancel()
     window.search_controller.cancel()
+    window.support.controller.cancel()
     job = window.controller.job
     if job is not None:
         job.wait()
@@ -75,6 +77,10 @@ def launch() -> int:
     search_job = window.search_controller.job
     if search_job is not None:
         search_job.wait()
+    support_job = window.support.controller.job
+    if support_job is not None:
+        support_job.wait()
     application.processEvents()
+    window.state_controller.close()
     window.close()
     return status
