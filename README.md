@@ -81,7 +81,11 @@ privileges, and expected effects before approval. Operations report failures and
 verify native inventory before declaring success.
 
 The desktop includes Dashboard, Explore, Installed, Updates, Queue, History, and
-Settings. Search is local and curated. Install, remove, and update actions open a
+Settings. Search combines curated tools with live results from detected managers.
+Live results retain source/native IDs and are browse-only until a reviewed mapping
+is available. Searches are debounced, cached, cancellable, and can be disabled in
+Settings; native searches may access the network. See the [discovery guide](docs/discovery.md).
+Install, remove, and update actions for curated tools open a
 plan review; administrator prompts need a separate approval. Settings, history,
 and logs last for the current session. Windows can browse the catalog, but native
 package management there is not enabled yet. See the [desktop guide](docs/desktop.md)
@@ -120,8 +124,8 @@ fake Scoop script; they never install developer tools. Native installation,
 elevation, packaging, and clean-machine behavior still need disposable-system
 coverage. CI is configured for Python 3.10–3.14 on Windows, macOS, and Linux.
 
-The next milestone is hybrid live discovery, followed by runtime managers,
-portable presets, and release packaging. More native inventory readers are also
+The next milestones are runtime managers, portable presets, production hardening,
+and release packaging. More native inventory readers are also
 needed to enable the remaining backends. The existing Windows build workflow
 still produces a CLI preview; desktop packaging belongs to the release milestone.
 

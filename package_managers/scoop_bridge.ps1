@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $ScoopScript,
     [Parameter(Mandatory = $true)]
-    [ValidateSet('version', 'search', 'install', 'uninstall', 'upgrade', 'list', 'show')]
+    [ValidateSet('version', 'search', 'search-json', 'install', 'uninstall', 'upgrade', 'list', 'show')]
     [string] $Action,
     [string] $Package,
     [string] $Query
@@ -23,11 +23,25 @@ try {
     }
     $arguments = @()
     $nativeAction = $Action
-    if ($Action -eq 'search') {
+    if ($Action -in @('search', 'search-json')) {
         if ($Query -notmatch '^[A-Za-z0-9][A-Za-z0-9 ._+@-]{0,99}$' -or $Package) {
             throw 'Invalid search request.'
         }
         $arguments = @($Query)
+        if ($Action -eq 'search-json') {
+            $global:LASTEXITCODE = 0
+            $items = @(& $scriptFile.FullName 'search' @arguments 6>$null)
+            $searchSucceeded = $?
+            $searchExitCode = [int] $LASTEXITCODE
+            if ($searchExitCode -ne 0) { exit $searchExitCode }
+            if (-not $searchSucceeded) { exit 1 }
+            $packages = @($items | Select-Object -First 200 | ForEach-Object {
+                if (-not $_.Name -or -not $_.Source) { throw 'Unsupported native search record.' }
+                [PSCustomObject]@{ Name = [string] $_.Name; Source = [string] $_.Source; Version = [string] $_.Version }
+            })
+            [PSCustomObject]@{ packages = $packages; limited = ($items.Count -gt 200) } | ConvertTo-Json -Depth 4 -Compress
+            exit 0
+        }
     } elseif ($Action -in @('install', 'uninstall', 'upgrade', 'show')) {
         if ($Package -notmatch '^(main|extras)/[a-z0-9][a-z0-9._-]*$' -or $Query) {
             throw 'A reviewed bucket and exact package token are required.'

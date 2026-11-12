@@ -3,6 +3,7 @@
 from services.catalog.loader import load_catalog
 from services.catalog.service import CatalogService
 from services.desktop import DesktopServices
+from services.discovery import DiscoveryService
 from services.inventory import Inspector
 from system.platform import detect_platform
 from system.runner import CommandRunner
@@ -10,6 +11,7 @@ from system.runner import CommandRunner
 
 def create_services() -> DesktopServices:
     from package_managers.apt import APT
+    from package_managers.discovery import providers_for
     from package_managers.homebrew import Homebrew
     from package_managers.inspection import APTInspector, HomebrewInspector
     from package_managers.registry import adapters_for
@@ -23,8 +25,14 @@ def create_services() -> DesktopServices:
             inspectors.append(APTInspector(adapter, runner))
         elif isinstance(adapter, Homebrew):
             inspectors.append(HomebrewInspector(adapter, runner))
+    catalog = CatalogService(load_catalog())
     return DesktopServices(
-        CatalogService(load_catalog()), host, adapters, tuple(inspectors), runner
+        catalog,
+        host,
+        adapters,
+        tuple(inspectors),
+        runner,
+        DiscoveryService(catalog, host, providers_for(adapters, runner)),
     )
 
 
@@ -56,9 +64,13 @@ def launch() -> int:
     # Keep the window/controller alive until their cancellable worker has stopped.
     window.pending_close = True
     window.controller.cancel()
+    window.search_controller.cancel()
     job = window.controller.job
     if job is not None:
         job.wait()
+    search_job = window.search_controller.job
+    if search_job is not None:
+        search_job.wait()
     application.processEvents()
     window.close()
     return status

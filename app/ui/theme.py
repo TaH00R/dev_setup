@@ -32,6 +32,7 @@ def apply_theme(dark: bool = False) -> None:
         QPushButton {{ background: {surface}; border: 1px solid {border}; border-radius: 6px; padding: 8px 14px; }}
         QPushButton:hover {{ border-color: #247c7b; }}
         QPushButton#primary {{ background: #116a68; color: white; border-color: #116a68; }}
+        QPushButton#primary:disabled {{ color: {muted}; background: {background}; border-color: {border}; }}
         QPushButton:disabled {{ color: {muted}; background: {background}; }}
         QHeaderView::section {{ background: {surface}; color: {muted}; border: none; border-bottom: 1px solid {border}; padding: 8px; }}
         QTableWidget {{ gridline-color: {border}; }}

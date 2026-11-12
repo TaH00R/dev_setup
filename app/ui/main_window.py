@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from models.catalog import Package
+from models.discovery import LivePackage
 from models.operations import OperationState, ProgressEvent
 from models.package import PackageVersion
 from models.planning import OperationAction
@@ -42,10 +43,12 @@ from services.desktop import (
     InstalledRow,
     UpdateReport,
 )
+from services.discovery import SearchSnapshot
 from services.records import ExecutionReport, PackageRequest, ReviewedPlan
 from system.commands import OutputSnapshot
 
 from .review import ReviewDialog
+from .search import SearchController
 from .theme import apply_theme
 from .workers import Controller
 
@@ -92,10 +95,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.services = services
         self.controller = Controller(services, self)
+        self.search_controller = SearchController(services.discovery, self)
         self.snapshot: DesktopSnapshot | None = None
         self.update_report: UpdateReport | None = None
         self.package: Package | None = None
         self.matches: list[Package] = []
+        self.live_matches: list[LivePackage] = []
+        self.live_package: LivePackage | None = None
         self.operation_rows: OrderedDict[str, int] = OrderedDict()
         self.pending_packages: dict[str, str] = {}
         self.log_cache: OrderedDict[str, dict[str, str]] = OrderedDict()
@@ -162,6 +168,9 @@ class MainWindow(QMainWindow):
         self.controller.progress.connect(self._event)
         self.controller.output.connect(self._output)
         self.controller.error.connect(self._error)
+        self.search_controller.ready.connect(self._search_ready)
+        self.search_controller.busy_changed.connect(self._search_busy)
+        self.search_controller.error.connect(self.search_summary.setText)
         self._search()
         self._selection_buttons()
         if auto_refresh:
@@ -230,16 +239,33 @@ class MainWindow(QMainWindow):
         for category in self.services.catalog.categories:
             self.category.addItem(category.replace("-", " ").title(), category)
         filters.addWidget(self.category)
-        self.compatible = QCheckBox("For this platform")
+        self.compatible = QCheckBox("Curated for this platform")
         filters.addWidget(self.compatible)
         layout.addLayout(filters)
+        live_controls = QHBoxLayout()
+        self.live_enabled = QCheckBox("Include live sources")
+        self.live_enabled.setChecked(True)
+        self.live_enabled.setToolTip(
+            "Use detected package managers. Queries may use the network and refresh native metadata caches."
+        )
+        self.live_enabled.toggled.connect(lambda: self._search())
+        live_controls.addWidget(self.live_enabled)
+        self.refresh_live = QPushButton("Refresh live results")
+        self.refresh_live.clicked.connect(lambda: self._search(force=True))
+        live_controls.addWidget(self.refresh_live)
+        self.cancel_search = QPushButton("Cancel search")
+        self.cancel_search.clicked.connect(self.search_controller.cancel)
+        self.cancel_search.hide()
+        live_controls.addWidget(self.cancel_search)
+        live_controls.addStretch()
+        layout.addLayout(live_controls)
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
         self.search_timer.setInterval(250)
-        self.search_timer.timeout.connect(self._search)
-        self.search.textChanged.connect(lambda: self.search_timer.start())
-        self.category.currentIndexChanged.connect(self._search)
-        self.compatible.toggled.connect(self._search)
+        self.search_timer.timeout.connect(self.search_controller.dispatch)
+        self.search.textChanged.connect(lambda: self._search(deferred=True))
+        self.category.currentIndexChanged.connect(lambda: self._search())
+        self.compatible.toggled.connect(lambda: self._search())
         split = QSplitter()
         self.package_list = QListWidget()
         self.package_list.setWordWrap(True)
@@ -387,6 +413,13 @@ class MainWindow(QMainWindow):
         self.debounce.setSuffix(" ms")
         self.debounce.valueChanged.connect(self.search_timer.setInterval)
         form.addRow("Search delay", self.debounce)
+        self.live_search_setting = QCheckBox(
+            "Search detected managers (may access the network)"
+        )
+        self.live_search_setting.setChecked(True)
+        self.live_search_setting.toggled.connect(self.live_enabled.setChecked)
+        self.live_enabled.toggled.connect(self.live_search_setting.setChecked)
+        form.addRow("Live discovery", self.live_search_setting)
         form.addRow("Concurrency", label("One plan at a time"))
         layout.addWidget(appearance)
         sources = QGroupBox("Package sources")
@@ -433,35 +466,141 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentIndex(index)
         self.heading.setText(self.pages[index])
 
-    def _search(self) -> None:
-        matches = self.services.catalog.search(
+    def _search(self, *, deferred: bool = False, force: bool = False) -> None:
+        self.search_timer.stop()
+        self.search_controller.request(
             self.search.text(),
             category=self.category.currentData(),
-            target=self.services.host,
             mapped_only=self.compatible.isChecked(),
+            enabled=self.live_enabled.isChecked(),
+            deferred=deferred,
+            force=force,
         )
+        if deferred and self.search_controller.pending is not None:
+            self.search_timer.start()
+
+    @Slot(object)
+    def _search_ready(self, snapshot: SearchSnapshot) -> None:
+        if self.pending_close:
+            return
         selected_id = self.package.id if self.package else None
-        self.matches = [match.package for match in matches]
+        selected_live = self.live_package.key if self.live_package else None
+        self.matches = [match.package for match in snapshot.curated]
+        self.live_matches = list(snapshot.live)
+        self.package_list.blockSignals(True)
         self.package_list.clear()
         for package in self.matches:
             mapped = any(
                 s.support.supports(self.services.host) for s in package.install_specs
             )
-            item = QListWidgetItem(
-                f"{package.name}\n{package.summary}\n{package.category.replace('-', ' ')} · Curated · {'Platform mapping available' if mapped else 'Unavailable on this platform'}"
+            self.package_list.addItem(
+                QListWidgetItem(
+                    f"{package.name}\n{package.summary}\n{package.category.replace('-', ' ')} · Curated · {'Platform mapping available' if mapped else 'Unavailable on this platform'}"
+                )
             )
-            self.package_list.addItem(item)
-        self.search_summary.setText(
-            f"{len(matches)} curated tools · Local metadata · Live search comes in a later release"
+        for live_package in self.live_matches:
+            self.package_list.addItem(
+                QListWidgetItem(
+                    f"{live_package.name}\n{live_package.summary or live_package.native_id}\nLive · {live_package.backend} / {live_package.source_id} · {live_package.native_id}"
+                )
+            )
+        index = next((n for n, p in enumerate(self.matches) if p.id == selected_id), -1)
+        same_curated = index >= 0
+        if index < 0 and selected_live is not None:
+            index = next(
+                (
+                    len(self.matches) + n
+                    for n, p in enumerate(self.live_matches)
+                    if p.key == selected_live
+                ),
+                -1,
+            )
+        if index < 0:
+            index = 0 if self.package_list.count() else -1
+        self.package_list.setCurrentRow(index)
+        self.package_list.blockSignals(False)
+        if not same_curated:
+            self._select(index)
+        states = []
+        for status in snapshot.providers:
+            message = f"{status.provider_id}: {status.state.value}"
+            if status.cache_age_seconds is not None:
+                message += f" ({int(status.cache_age_seconds)}s old)"
+            if status.limited:
+                message += " (result limit reached)"
+            if status.error:
+                message += f" · {status.error.message}"
+            states.append(message)
+        state = (
+            "Search cancelled; partial results retained."
+            if snapshot.cancelled
+            else "Searching live sources…"
+            if not snapshot.complete
+            else "Search complete."
         )
-        index = next((n for n, p in enumerate(self.matches) if p.id == selected_id), 0)
-        self.package_list.setCurrentRow(index if self.matches else -1)
-        if not self.matches:
-            self._select(-1)
+        self.search_summary.setText(
+            f"{len(self.matches)} curated · {len(self.live_matches)} live · {state}\n"
+            + "\n".join(part for part in (snapshot.note, " | ".join(states)) if part)
+        )
+
+    @Slot(bool)
+    def _search_busy(self, busy: bool) -> None:
+        self.cancel_search.setVisible(busy)
+        if not busy and self.pending_close and not self.controller.busy:
+            QTimer.singleShot(0, self.close)
+
+    def _live_details(self) -> None:
+        package = self.live_package
+        if package is None:
+            return
+        self.package_name.setText(package.name)
+        self.package_details.setPlainText(
+            "\n".join(
+                [
+                    package.summary or "No description supplied.",
+                    "",
+                    "Discovery: Live (not curated)",
+                    f"Backend: {package.backend}",
+                    f"Source: {package.source_id}",
+                    f"Native ID: {package.native_id}",
+                    f"Reported version: {package.version or 'Unknown'}",
+                    f"Trust: {package.trust.value}",
+                    f"Search platform: {package.platform.os.value} / {package.platform.architecture.value}",
+                    "Platform compatibility and installation support have not been verified.",
+                    "",
+                    *package.caveats,
+                ]
+            )
+        )
+        self.homepage.setEnabled(False)
+        self.source.setEnabled(False)
+        self.action.setEnabled(False)
+        self.version.clear()
+        self.version.setEnabled(False)
+        self.review_button.setEnabled(False)
+        self.action_note.setText(
+            "Live discovery only. Installation needs a reviewed catalog mapping and plan."
+        )
 
     @Slot(int)
     def _select(self, index: int) -> None:
+        live_index = index - len(self.matches)
+        self.live_package = (
+            self.live_matches[live_index]
+            if 0 <= live_index < len(self.live_matches)
+            else None
+        )
+        if self.live_package is not None:
+            self.package = None
+            self.source.blockSignals(True)
+            self.source.clear()
+            self.source.addItem(self.live_package.source_id, None)
+            self.source.blockSignals(False)
+            self._live_details()
+            return
         self.package = self.matches[index] if 0 <= index < len(self.matches) else None
+        self.source.setEnabled(self.package is not None)
+        self.action.setEnabled(self.package is not None)
         self.source.clear()
         self.version.clear()
         package = self.package
@@ -476,6 +615,9 @@ class MainWindow(QMainWindow):
         self._action_state()
 
     def _action_state(self) -> None:
+        if self.live_package is not None:
+            self._live_details()
+            return
         spec = self.source.currentData()
         action = OperationAction(self.action.currentData())
         package = self.package
@@ -866,8 +1008,10 @@ class MainWindow(QMainWindow):
         self.status.setText(message)
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        if self.controller.busy:
-            self.pending_close = True
+        self.pending_close = True
+        self.search_timer.stop()
+        self.search_controller.cancel()
+        if self.controller.busy or self.search_controller.busy:
             self._cancel()
             event.ignore()
         else:

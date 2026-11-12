@@ -21,6 +21,29 @@ POWERSHELL = (
     POWERSHELL, "Native PowerShell is not installed; bridge tests run on Windows CI."
 )
 class ScoopBridgeTests(unittest.TestCase):
+    def test_search_json_projects_native_objects_without_mutation(self):
+        self.script.write_text(
+            "param([string] $Action, [string] $Query)\n"
+            "if ($Action -ne 'search') { exit 30 }\n"
+            "Write-Host 'Informational native banner'\n"
+            "[PSCustomObject]@{ Name='synthetic-tool'; Source='main'; Version='1.0' }\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        result = self.invoke("-Action", "search-json", "-Query", "synthetic")
+        self.assertTrue(result.succeeded, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data["packages"][0]["Name"], "synthetic-tool")
+        self.assertFalse(data["limited"])
+
+    def test_search_json_does_not_hide_native_failure_or_accept_command_text(self):
+        self.script.write_text("exit 17\n", encoding="utf-8")
+        result = self.invoke("-Action", "search-json", "-Query", "git")
+        self.assertEqual(result.exit_code, 17)
+        result = self.invoke("-Action", "search-json", "-Query", "git;unexpected")
+        self.assertEqual(result.exit_code, 1)
+        self.assertNotIn("unexpected", result.stderr)
+
     def test_redirected_metadata_uses_utf8(self):
         self.script.write_text(
             "[Console]::Out.WriteLine([char]0x00e9)\nexit 0\n", encoding="utf-8"

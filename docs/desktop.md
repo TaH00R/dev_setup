@@ -16,11 +16,13 @@ native readers are reviewed. The UI explains this rather than guessing support.
 
 - **Dashboard** shows the detected OS/architecture, available package managers,
   native inventory count, limitations and recent activity.
-- **Explore** searches the local curated catalog with a configurable debounce,
-  category filter and platform filter. Package details include provenance, native
+- **Explore** combines curated-first metadata with asynchronous live search,
+  configurable debounce, category and curated-platform filters. Package details include provenance, native
   ID, homepage, license, dependencies, size when known, privileges and restart
   notes. Source and action choices produce a fresh service plan. Exact native
   version input is available only when supported; it is not a fetched version list.
+  Live hits are marked unreviewed, retain native/source identity, and cannot start
+  an installation. Provider failures retain partial results. See [discovery](discovery.md).
 - **Installed** shows native package identity, versions, backend and recorded
   source. Unknown origin stays unknown. Unmapped native tools remain visible but
   do not receive guessed catalog mappings or install actions. Executable probes

@@ -11,6 +11,7 @@ from package_managers.base import Availability, BackendAction, PackageManager
 from system.runner import CommandRunner
 
 from .catalog.service import CatalogService
+from .discovery import DiscoveryService
 from .inventory import Inspector, InventoryService
 from .operations import OperationService
 from .planning import Planner
@@ -57,6 +58,7 @@ class DesktopServices:
         adapters: tuple[PackageManager, ...],
         inspectors: tuple[Inspector, ...],
         runner: CommandRunner,
+        discovery: DiscoveryService | None = None,
     ) -> None:
         self.catalog = catalog
         self.host = host
@@ -65,6 +67,7 @@ class DesktopServices:
         self.inventory = InventoryService(inspectors, runner)
         self.planner = Planner(catalog, host, inspectors)
         self.operations = OperationService(inspectors, runner)
+        self.discovery = discovery or DiscoveryService(catalog, host)
 
     def action_reason(self, spec: InstallSpec, action: OperationAction) -> str | None:
         inspector = next(

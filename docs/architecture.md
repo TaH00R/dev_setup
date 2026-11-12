@@ -22,6 +22,8 @@ in `system/`. Step 6 adds root-level `services/` for inventory, dependency/confl
 planning, exact-plan consent and verified operations. Step 7 adds the optional
 PySide6 presentation layer in `app/ui/` and Qt-independent desktop aggregation
 in `services/desktop.py`.
+Step 8 adds Qt-independent discovery records/services and adapter-owned parsers,
+with an independent generation-aware search worker in `app/ui/search.py`.
 Importing core modules must not
 discover software, start a process,
 load Qt, or import `app`, the launcher, or `app/legacy/`.

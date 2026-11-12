@@ -96,6 +96,12 @@ class Scoop(PackageManager):
                 "Scoop requires a plain exact package token without paths, URLs or version expressions.",
             )
 
+    def search_json(self, query: str) -> Command:
+        command = self.search(query)
+        argv = list(command.argv)
+        argv[argv.index("-Action") + 1] = "search-json"
+        return replace(command, argv=tuple(argv))
+
     def _build(
         self,
         action: BackendAction,
