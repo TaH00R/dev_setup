@@ -90,10 +90,16 @@ operation results or print raw filesystem exceptions.
 
 `services.diagnostics.collect_diagnostics()` builds a bounded report containing
 app/Python version, normalized OS/architecture/distribution and backend
-availability booleans. It excludes executable locations, native failure reasons,
-environment values, usernames, hostnames and audit content. Export is explicit,
+availability booleans, plus up to 16 recent registered diagnostic events from a
+128-event session ring. Events contain fixed codes/components, optional error
+codes/generated operation IDs and UTC timestamps. It excludes executable
+locations, exception text, native output, environment values, usernames,
+hostnames and audit rows. Export is explicit,
 creates a new file without overwriting an existing one, and sends nothing over
 the network. Review an exported report before sharing it.
+See [runner hardening](runner-hardening.md) for the failure-injection audit and
+process-scope guarantees. Raw process output is sensitive even after redaction;
+generic credential filters do not make it suitable for diagnostic export.
 
 ## Checks
 

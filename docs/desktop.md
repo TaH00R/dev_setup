@@ -221,9 +221,13 @@ support workers. Direct `MainWindow(..., state_path=None)` construction remains
 ephemeral for embedding, tests and packaging smoke checks.
 
 Settings also offers an opt-in diagnostics preview and export. The reviewed JSON
-contains only application/Python versions, normalized platform facts and backend
-availability from the most recent inventory refresh. Export exclusively creates
+contains application/Python versions, normalized platform facts, backend
+availability from the most recent inventory refresh and up to 16 recent fixed
+diagnostic events. Worker errors point to this preview; arbitrary exception
+text and native output are excluded. Export exclusively creates
 a new file. It contains no local paths, process output or environment values.
+Owned process groups/Windows jobs and nonblocking pipe readers make normal
+shutdown wait for owned process cleanup; see [runner hardening](runner-hardening.md).
 
 Application update checks are manual and run on a worker. This build has no
 configured trusted signed release channel, so the check reports that updates are

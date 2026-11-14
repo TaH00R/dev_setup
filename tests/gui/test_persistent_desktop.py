@@ -1,5 +1,6 @@
 """Desktop persistence and support controls never touch real app data or a network."""
 
+import errno
 import json
 import os
 import tempfile
@@ -9,6 +10,10 @@ from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 from unittest import mock
+
+from app.bootstrap import launch
+from models.diagnostics import DiagnosticCode
+from system.diagnostics import session_diagnostics
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
@@ -27,7 +32,7 @@ from models.environment import RuntimeAudit, RuntimeResult
 from models.operations import OperationState
 from models.planning import utc_now
 from package_managers.base import AdapterError
-from persistence.store import DesktopSettings, StateError, StateStore
+from persistence.store import DesktopSettings, StateStore
 from services.records import AuditRecord, ExecutionReport, PackageRequest, PlanConsent
 from services.updates import UpdateCheck
 from tests.fixtures.desktop import DesktopFixture
@@ -36,6 +41,46 @@ from tests.fixtures.lifecycle import active_run
 
 @unittest.skipUnless(QT_AVAILABLE, "Install requirements-gui.txt for desktop tests.")
 class PersistentDesktopTests(unittest.TestCase):
+    def test_internal_worker_error_is_inspectable_and_exportable_without_exception_text(
+        self,
+    ):
+        window = self.open_window(persistent=False)
+
+        def failed(cancel, event, output):
+            raise RuntimeError("token=worker-secret C:/private/environment")
+
+        window.controller.start("fixture", failed)
+        self.wait_for(lambda: not window.controller.busy)
+        self.assertIn("worker_failed", window.status.text())
+        self.assertNotIn("worker-secret", window.status.text())
+        window.support.preview_diagnostics()
+        self.wait_for(lambda: not window.support.controller.busy)
+        payload = json.loads(window.support.details.toPlainText())
+        self.assertIn(
+            "worker_failed", [item["code"] for item in payload["diagnostics"]]
+        )
+        target = self.root / "reviewed-diagnostics.json"
+        window.support.export_to(target)
+        self.wait_for(lambda: not window.support.controller.busy)
+        self.assertNotIn("worker-secret", target.read_text())
+        self.assertEqual(json.loads(target.read_text()), payload)
+
+    def test_startup_error_has_safe_code_without_local_exception_context(self):
+        with (
+            mock.patch(
+                "app.bootstrap.create_services",
+                side_effect=RuntimeError("password=startup-secret C:/private"),
+            ),
+            mock.patch("PySide6.QtWidgets.QMessageBox.critical") as critical,
+        ):
+            self.assertEqual(launch(), 1)
+        message = critical.call_args.args[2]
+        self.assertIn("startup_failed", message)
+        self.assertNotIn("startup-secret", message)
+        self.assertEqual(
+            session_diagnostics.snapshot(1)[0].code, DiagnosticCode.STARTUP_FAILED
+        )
+
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
@@ -262,7 +307,7 @@ class PersistentDesktopTests(unittest.TestCase):
         with mock.patch.object(
             StateStore,
             "append_audit",
-            side_effect=StateError("Saved history is unavailable."),
+            side_effect=OSError(errno.ENOSPC, "private-disk-path token=do-not-export"),
         ):
             window._completed(ExecutionReport((), (record,)))
             self.wait_for(lambda: not window.state_controller.busy)

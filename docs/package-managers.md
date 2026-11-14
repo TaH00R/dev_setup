@@ -125,7 +125,9 @@ Each stream retains at most 65,536 bytes by default; capture continues draining
 after truncation so verbose tools cannot deadlock on full pipes. Results expose
 timestamps, status, bounded text, truncation, and structured failures. Optional
 observers receive replacement snapshots per stream, not append-only chunks.
-Observer errors stop monitoring with a structured failure and process cleanup.
+Observer errors are isolated and recorded with fixed diagnostic codes; they do
+not change the native command result. Failed pipe reads or runner monitoring
+still stop the owned scope and report structured failure.
 
 Explicit secrets, custom environment override values, known credential fields,
 bearer tokens and URL credentials are redacted. Explicit secrets split across
@@ -136,10 +138,12 @@ known secrets and must not persist arbitrary output as audit/history records.
 The runner writes no log files and hides output from default result/event repr.
 
 Cancellation and timeouts request termination, then bounded forced shutdown
-where permitted. POSIX requests use a process session/group; Windows terminates
-the direct child. Detached native installers or privileged descendants may
-continue, and access restrictions may prevent termination. Results describe
-partial changes; no rollback or universal process-tree cancellation is claimed.
+where permitted. POSIX requests use an owned process session/group; Windows
+starts suspended and assigns an owned kill-on-close Job Object before resuming.
+Ordinary descendants are cleaned up even after their parent exits. Detached
+sessions, external brokers/services and inaccessible privileged work remain
+outside a universal guarantee. Results describe partial changes; no rollback
+is claimed. See [runner hardening](runner-hardening.md) for coverage and limits.
 Process creation itself may not be interruptible immediately on every OS.
 
 ## Validation and follow-up

@@ -16,6 +16,36 @@ from services.records import AuditRecord
 
 
 class PersistenceTests(unittest.TestCase):
+    def test_sqlite_full_during_audit_write_rolls_back_and_omits_native_details(self):
+        store = StateStore(self.path)
+        self.addCleanup(store.close)
+        original_record = self.record("existing")
+        store.append_audit((original_record,))
+        connect = sqlite3.connect
+
+        class FullOnInsert:
+            def __init__(self, database):
+                self.database = database
+
+            def __getattr__(self, name):
+                return getattr(self.database, name)
+
+            def execute(self, sql, *args):
+                if sql.startswith("INSERT INTO audit"):
+                    raise sqlite3.OperationalError(
+                        "database or disk is full token=private-location"
+                    )
+                return self.database.execute(sql, *args)
+
+        with mock.patch(
+            "persistence.store.sqlite3.connect",
+            side_effect=lambda *args, **kwargs: FullOnInsert(connect(*args, **kwargs)),
+        ):
+            with self.assertRaises(StateError) as caught:
+                store.append_audit((self.record("new-result"),))
+        self.assertNotIn("private-location", str(caught.exception))
+        self.assertEqual(store.load_history(), (original_record,))
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

@@ -9,6 +9,7 @@ from threading import Event, RLock
 from typing import TYPE_CHECKING, Protocol
 from uuid import uuid4
 
+from models.diagnostics import DiagnosticCode, DiagnosticComponent
 from models.environment import RuntimePlan, RuntimeRequest
 from models.errors import ErrorCode
 from models.lifecycle import (
@@ -23,6 +24,7 @@ from models.planning import utc_now
 from models.platform import Platform
 from package_managers.base import AdapterError
 from system.coordination import NativeCoordinator
+from system.diagnostics import record_diagnostic
 
 from .coordination import access
 from .inventory import Inspector
@@ -118,6 +120,9 @@ class LifecycleRun:
             try:
                 previous_records = store.load_lifecycle()
             except Exception:
+                record_diagnostic(
+                    DiagnosticCode.STATE_IO_FAILED, DiagnosticComponent.STATE
+                )
                 raise AdapterError(
                     ErrorCode.UNKNOWN,
                     "Lifecycle evidence could not be read; no native operation was started.",
@@ -160,6 +165,11 @@ class LifecycleRun:
             try:
                 self.store.save_lifecycle(record)
             except Exception:
+                record_diagnostic(
+                    DiagnosticCode.STATE_IO_FAILED,
+                    DiagnosticComponent.STATE,
+                    operation_id=record.operation_id,
+                )
                 message = "Lifecycle persistence failed. The actual result remains in this session; inspect native state before any retry."
                 if message not in self.errors:
                     self.errors.append(message)
@@ -232,7 +242,8 @@ class LifecycleRun:
         if (
             result
             and result.error
-            and result.error.code in {ErrorCode.TIMEOUT, ErrorCode.CANCELLED}
+            and result.error.code
+            in {ErrorCode.TIMEOUT, ErrorCode.CANCELLED, ErrorCode.PROCESS_CONTROL}
             and record.mutation_started
         ):
             detail = "inspection_required"

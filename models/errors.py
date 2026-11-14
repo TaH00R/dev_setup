@@ -15,6 +15,7 @@ class ErrorCode(str, Enum):
     TIMEOUT = "timeout"
     CANCELLED = "cancelled"
     COMMAND_FAILED = "command_failed"
+    PROCESS_CONTROL = "process_control"
     DEPENDENCY_CONFLICT = "dependency_conflict"
     DEPENDENCY_CYCLE = "dependency_cycle"
     VERSION_MISMATCH = "version_mismatch"

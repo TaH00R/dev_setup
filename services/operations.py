@@ -7,6 +7,7 @@ from collections.abc import Callable
 from threading import Event
 from uuid import uuid4
 
+from models.diagnostics import DiagnosticCode, DiagnosticComponent
 from models.errors import ErrorCode, OperationError
 from models.inventory import InstalledPackage
 from models.operations import Operation, OperationResult, OperationState, ProgressEvent
@@ -14,6 +15,7 @@ from models.planning import OperationAction, utc_now
 from package_managers.base import AdapterError
 from system.commands import Approval, CommandResult, OutputSnapshot
 from system.coordination import NativeCoordinator
+from system.diagnostics import record_diagnostic
 from system.identity import IdentityError, bind
 from system.runner import CommandRunner
 
@@ -90,6 +92,7 @@ class OperationService:
         requested_cancel = cancel
 
         def emit(operation: Operation) -> None:
+            nonlocal observe
             lifecycle.operation(
                 operation,
                 dependency_failed,
@@ -108,7 +111,12 @@ class OperationService:
                         )
                     )
                 except Exception:
-                    pass  # Observers cannot interrupt cleanup or turn success into failure.
+                    record_diagnostic(
+                        DiagnosticCode.OBSERVER_FAILED,
+                        DiagnosticComponent.OPERATIONS,
+                        operation_id=operation.id,
+                    )
+                    observe = None
 
         for operation, prepared in zip(queued, reviewed.prepared):
             item = operation.item
@@ -278,11 +286,17 @@ class OperationService:
                                     )
 
                                     def output(snapshot: OutputSnapshot) -> None:
+                                        nonlocal logs
                                         if logs:
                                             try:
                                                 logs(operation.id, snapshot)
                                             except Exception:
-                                                pass
+                                                record_diagnostic(
+                                                    DiagnosticCode.OBSERVER_FAILED,
+                                                    DiagnosticComponent.OPERATIONS,
+                                                    operation_id=operation.id,
+                                                )
+                                                logs = None
 
                                     command_result = self.runner.run(
                                         command,
@@ -336,6 +350,12 @@ class OperationService:
                     error.error,
                 )
             except Exception:
+                record_diagnostic(
+                    DiagnosticCode.INTERNAL_OPERATION_FAILED,
+                    DiagnosticComponent.OPERATIONS,
+                    error_code=ErrorCode.UNKNOWN,
+                    operation_id=operation.id,
+                )
                 # Never put an arbitrary backend/OS exception (possibly containing
                 # local configuration or credentials) in a UI message or audit record.
                 finish(

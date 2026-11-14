@@ -34,13 +34,51 @@ from services.planning import Planner
 from services.records import PackageRequest
 from system.commands import OutputSnapshot
 from system.coordination import NativeCoordinator
+from system.runner import CommandRunner
 from tests.fixtures.desktop import DesktopFixture
+from tests.integration.test_command_runner import fixture_command
+from tests.integration.test_process_failures import alive
 
 
 @unittest.skipUnless(
     QT_AVAILABLE, "Install requirements-gui.txt to run desktop acceptance tests."
 )
 class DesktopTests(unittest.TestCase):
+    def test_close_cancels_real_owned_python_tree_before_destroying_window(self):
+        root = Path(self.directory.name)
+        marker = root / "owned-child.pid"
+        code = (
+            "import subprocess,sys,time;from pathlib import Path;"
+            "child=subprocess.Popen([sys.executable,'-I','-c','import time;time.sleep(30)']);"
+            f"Path({str(marker)!r}).write_text(str(child.pid));"
+            "print('owned-ready',flush=True);time.sleep(30)"
+        )
+        ready = threading.Event()
+        results = []
+        runner = CommandRunner(coordinator=NativeCoordinator(root / "shutdown-lock"))
+
+        def execute(cancel, event, output):
+            result = runner.run(
+                fixture_command(code, timeout_seconds=10),
+                cancel=cancel,
+                observe=lambda snapshot: (
+                    ready.set() if "owned-ready" in snapshot.text else None
+                ),
+            )
+            results.append(result)
+            return result
+
+        self.window.controller.start("fixture", execute)
+        self.wait_for(ready.is_set)
+        child = int(marker.read_text())
+        self.assertTrue(alive(child))
+        self.window.close()
+        self.wait_for(
+            lambda: not self.window.controller.busy and not self.window.isVisible()
+        )
+        self.assertEqual(results[0].error.code, ErrorCode.CANCELLED)
+        self.assertFalse(alive(child))
+
     def test_timed_out_session_operation_offers_inspection_before_retry(self):
         self.fixture.failure = ErrorCode.TIMEOUT
         self.choose_git()

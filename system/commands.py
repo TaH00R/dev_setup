@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from models._validation import text
+from models.diagnostics import DiagnosticEvent
 from models.errors import OperationError
 from models.planning import CommandPreview, aware_timestamp, utc_now
 from models.platform import OperatingSystem
@@ -162,6 +163,7 @@ class CommandResult:
     stderr: str = field(default="", repr=False)
     output_truncated: bool = False
     error: OperationError | None = None
+    diagnostics: tuple[DiagnosticEvent, ...] = field(default=(), repr=False)
 
     @property
     def succeeded(self) -> bool:

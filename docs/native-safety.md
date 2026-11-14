@@ -114,5 +114,7 @@ cancelled waits and inspection before retrying a timed-out session operation.
 
 Native mutations are fake. Linux/macOS locking and shebang behavior await native
 CI/host execution; no native elevation, package installation or clean-machine
-qualification is claimed. Milestone 13 expands runner/process-tree failure
-testing and diagnostics.
+qualification is claimed. Milestone 13 adds [owned process scopes, failure
+injection and safe diagnostics](runner-hardening.md). Its Windows Job Object
+guarantees supplement these advisory locks; they do not turn the locks into a
+universal native-process cancellation mechanism.

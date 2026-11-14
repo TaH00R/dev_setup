@@ -6,7 +6,9 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from models._validation import identifier
+from models.diagnostics import DiagnosticCode, DiagnosticComponent
 from models.planning import utc_now
+from system.diagnostics import record_diagnostic
 
 from .store import StateError
 
@@ -14,7 +16,7 @@ from .store import StateError
 class _QuietRotatingHandler(RotatingFileHandler):
     def handleError(self, record: logging.LogRecord) -> None:
         # Disk failures must not produce raw handler tracebacks/paths on stderr.
-        pass
+        record_diagnostic(DiagnosticCode.EVENT_LOG_FAILED, DiagnosticComponent.STATE)
 
 
 class SafeEventLog:

@@ -6,8 +6,10 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from models.diagnostics import DiagnosticEvent
 from models.platform import Platform
 from package_managers.base import Availability
+from system.diagnostics import session_diagnostics
 
 
 @dataclass(frozen=True)
@@ -19,6 +21,7 @@ class DiagnosticReport:
     distribution: str | None
     distribution_version: str | None
     backends: tuple[tuple[str, bool], ...]
+    diagnostics: tuple[DiagnosticEvent, ...] = ()
 
     def __post_init__(self) -> None:
         def safe(value: str, pattern: str) -> bool:
@@ -52,6 +55,12 @@ class DiagnosticReport:
                 or type(available) is not bool
             ):
                 raise ValueError("diagnostic backend facts must be typed identifiers")
+        if (
+            not isinstance(self.diagnostics, tuple)
+            or len(self.diagnostics) > 16
+            or any(not isinstance(item, DiagnosticEvent) for item in self.diagnostics)
+        ):
+            raise ValueError("Diagnostic events must be bounded registered metadata.")
 
 
 def collect_diagnostics(
@@ -72,6 +81,7 @@ def collect_diagnostics(
         host.distribution.id if host.distribution else None,
         host.distribution.version if host.distribution else None,
         tuple((item.backend, item.available) for item in availability),
+        session_diagnostics.snapshot(16),
     )
 
 
@@ -93,6 +103,16 @@ def diagnostic_json(report: DiagnosticReport) -> str:
         "backends": [
             {"id": backend, "available": available}
             for backend, available in report.backends
+        ],
+        "diagnostics": [
+            {
+                "code": event.code.value,
+                "component": event.component.value,
+                "error_code": event.error_code.value if event.error_code else None,
+                "operation_id": event.operation_id,
+                "timestamp": event.timestamp.isoformat(),
+            }
+            for event in report.diagnostics
         ],
     }
     encoded = json.dumps(payload, sort_keys=True, indent=2) + "\n"

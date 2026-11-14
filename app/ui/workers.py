@@ -6,6 +6,7 @@ from threading import Event, Lock
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
+from models.diagnostics import DiagnosticCode, DiagnosticComponent
 from models.errors import ErrorCode
 from models.operations import ProgressEvent
 from package_managers.base import AdapterError
@@ -18,6 +19,7 @@ from services.records import (
     ReviewedPlan,
 )
 from system.commands import OutputSnapshot
+from system.diagnostics import record_diagnostic
 
 Task = Callable[
     [Event, Callable[[ProgressEvent], None], Callable[[str, OutputSnapshot], None]],
@@ -72,9 +74,14 @@ class Job(QThread):
             self.failure_code = error.error.code
             self.error.emit(error.error.message)
         except Exception:
+            record_diagnostic(
+                DiagnosticCode.WORKER_FAILED,
+                DiagnosticComponent.WORKER,
+                error_code=ErrorCode.UNKNOWN,
+            )
             self.failure_code = ErrorCode.UNKNOWN
             self.error.emit(
-                "The operation could not be completed. No rollback was attempted; partial changes may remain."
+                "The operation could not be completed. No rollback was attempted; partial changes may remain. Diagnostic code: worker_failed. Preview diagnostics in Settings > Support."
             )
 
 

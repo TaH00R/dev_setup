@@ -2,12 +2,44 @@
 
 import copy
 import unittest
+from itertools import product
 
 from services.catalog.schema import CatalogValidationError, decode_package
 from tests.fixtures.catalog import example_document
 
 
 class CatalogSchemaTests(unittest.TestCase):
+    def test_generated_launch_hook_payloads_cannot_enter_declarative_catalog(self):
+        paths = [
+            (),
+            ("package",),
+            ("package", "install_specs", 0),
+            ("package", "detection", 0),
+            ("package", "install_specs", 0, "source"),
+        ]
+        payloads = (
+            "token=never-execute",
+            ["python", "-c", "never-execute"],
+            {"argv": ["never-execute"]},
+            None,
+        )
+        for path, key, payload in product(
+            paths,
+            ("command", "launch_paths", "launch_files", "pre_install", "script"),
+            payloads,
+        ):
+            document = example_document()
+            target = document
+            for part in path:
+                target = target[part]
+            target[key] = payload
+            with (
+                self.subTest(path=path, key=key),
+                self.assertRaises(CatalogValidationError) as caught,
+            ):
+                decode_package(document)
+            self.assertNotIn("never-execute", str(caught.exception))
+
     def test_complete_document_decodes_to_immutable_records(self):
         document = example_document()
         package = decode_package(document)

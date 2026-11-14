@@ -7,10 +7,12 @@ from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QObject, QThread, Signal, Slot
 
+from models.diagnostics import DiagnosticCode, DiagnosticComponent
 from models.lifecycle import LifecycleRecord
 from persistence.events import SafeEventLog
 from persistence.store import DesktopSettings, StateError, StateStore
 from services.records import AuditRecord
+from system.diagnostics import record_diagnostic
 
 
 @dataclass(frozen=True)
@@ -33,8 +35,10 @@ class StateJob(QThread):
         try:
             self.value = self.task()
         except StateError as error:
+            record_diagnostic(DiagnosticCode.STATE_IO_FAILED, DiagnosticComponent.STATE)
             self.failure = str(error)
         except Exception:
+            record_diagnostic(DiagnosticCode.STATE_IO_FAILED, DiagnosticComponent.STATE)
             self.failure = "Application state could not be saved. Current results remain in this session."
 
 
@@ -84,6 +88,9 @@ class StateController(QObject):
                 except (StateError, OSError):
                     # An optional log must not make valid saved state unusable.
                     event_log = None
+                    record_diagnostic(
+                        DiagnosticCode.EVENT_LOG_FAILED, DiagnosticComponent.STATE
+                    )
                 return StoredState(store, settings, history, event_log, recovery)
             except Exception:
                 store.close()
@@ -162,7 +169,9 @@ class StateController(QObject):
                 self.event_log.record(event, code=kind)
             except Exception:
                 # Log failure cannot replace an operation or persistence result.
-                pass
+                record_diagnostic(
+                    DiagnosticCode.EVENT_LOG_FAILED, DiagnosticComponent.STATE
+                )
 
     def save_settings(self, settings: DesktopSettings) -> bool:
         return self._enqueue("settings", lambda: self._store().save_settings(settings))

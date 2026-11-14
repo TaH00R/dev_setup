@@ -1,10 +1,12 @@
 """Wire the optional desktop to the existing core; no imports run native commands."""
 
+from models.diagnostics import DiagnosticCode, DiagnosticComponent
 from services.catalog.loader import load_catalog
 from services.catalog.service import CatalogService
 from services.desktop import DesktopServices
 from services.discovery import DiscoveryService
 from services.inventory import Inspector
+from system.diagnostics import record_diagnostic
 from system.platform import detect_platform
 from system.runner import CommandRunner
 
@@ -52,10 +54,11 @@ def launch() -> int:
     try:
         services = create_services()
     except Exception:
+        record_diagnostic(DiagnosticCode.STARTUP_FAILED, DiagnosticComponent.STARTUP)
         QMessageBox.critical(
             None,
             "Dev Setup",
-            "The local catalog or platform could not be loaded. Run catalog validation to inspect the issue.",
+            "The local catalog or platform could not be loaded. Diagnostic code: startup_failed. Run catalog validation to inspect the issue.",
         )
         return 1
     window = MainWindow(services, state_path=default_state_path())

@@ -38,6 +38,10 @@ reviewed executable/interpreter/helper snapshots. Planning, inventory, execution
 verification and startup recovery cooperate through the same guard. The runner
 revalidates launch identity against its captured process environment immediately
 before dispatch. See [native safety](native-safety.md) for policy and limits.
+Milestone 13 adds `system/processes.py` for owned OS process scopes and
+`models/diagnostics.py`/`system/diagnostics.py` for fixed session diagnostic
+context. Diagnostics are independent of Qt and exclude native output; support
+preview/export remains explicit. See [runner hardening](runner-hardening.md).
 
 `catalog/` contains only reviewed JSON package definitions. Python loading,
 validation, and browsing/search live in `services/catalog/`, sharing `models/`

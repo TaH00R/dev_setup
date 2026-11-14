@@ -3,6 +3,7 @@
 from threading import Event
 from uuid import uuid4
 
+from models.diagnostics import DiagnosticCode, DiagnosticComponent
 from models.environment import (
     RuntimeAudit,
     RuntimeConsent,
@@ -21,6 +22,7 @@ from services.coordination import access
 from services.lifecycle import LifecycleStore, MemoryLifecycleStore, runtime_run
 from system.commands import Approval, CommandResult
 from system.coordination import NativeCoordinator
+from system.diagnostics import record_diagnostic
 from system.identity import IdentityError, bind
 from system.runner import CommandRunner, OutputObserver
 
@@ -157,7 +159,8 @@ class RuntimeService:
                 else "unknown",
                 detail="inspection_required"
                 if error
-                and error.code in {ErrorCode.TIMEOUT, ErrorCode.CANCELLED}
+                and error.code
+                in {ErrorCode.TIMEOUT, ErrorCode.CANCELLED, ErrorCode.PROCESS_CONTROL}
                 and lifecycle.records[operation_id].mutation_started
                 else "native_changes_possible"
                 if lifecycle.records[operation_id].mutation_started
@@ -242,6 +245,12 @@ class RuntimeService:
             )
             return finish(state, exc.error.message, exc.error)
         except Exception:
+            record_diagnostic(
+                DiagnosticCode.INTERNAL_OPERATION_FAILED,
+                DiagnosticComponent.RUNTIMES,
+                error_code=ErrorCode.UNKNOWN,
+                operation_id=operation_id,
+            )
             error = OperationError(
                 ErrorCode.UNKNOWN,
                 "Runtime execution encountered an unexpected error; inspect the retained command result and review before retrying.",

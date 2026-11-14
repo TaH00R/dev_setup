@@ -171,16 +171,17 @@ class CommandRunnerTests(unittest.TestCase):
         self.assertNotIn("private-value", result.stdout)
         self.assertNotIn("CUSTOM_VALUE", repr(command))
 
-    def test_observer_exception_is_contained_and_child_is_stopped(self):
+    def test_observer_exception_is_isolated_from_the_actual_command_result(self):
         def broken_observer(_):
             raise RuntimeError("sensitive observer state")
 
         result = CommandRunner().run(
-            fixture_command("import time;print('ready',flush=True);time.sleep(10)"),
+            fixture_command("print('ready',flush=True)"),
             observe=broken_observer,
         )
-        self.assertEqual(result.error.code, ErrorCode.COMMAND_FAILED)
-        self.assertNotIn("sensitive", result.error.message)
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.diagnostics[0].code.value, "observer_failed")
+        self.assertNotIn("sensitive", repr(result.diagnostics))
 
     def test_invalid_requests_and_limits_are_rejected(self):
         for limit in (0, -1, True, 65537):

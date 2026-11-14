@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
+from models.diagnostics import DiagnosticCode
 from models.errors import ErrorCode, OperationError
 from models.inventory import Detection, InstalledPackage, Inventory, NativeReview
 from models.operations import OperationState as State
@@ -26,6 +27,7 @@ from services.records import (
     PlanConsent,
 )
 from system.commands import CommandResult, OutputSnapshot
+from system.diagnostics import session_diagnostics
 from system.runner import CommandRunner
 
 
@@ -524,6 +526,37 @@ class ServiceTests(unittest.TestCase):
         report = self.execute(self.preview())
         self.assertEqual(report.operations[0].result.error.code, ErrorCode.UNKNOWN)
         self.assertNotIn("do-not-expose", repr(report))
+        diagnostic = session_diagnostics.snapshot(1)[0]
+        self.assertEqual(diagnostic.code, DiagnosticCode.INTERNAL_OPERATION_FAILED)
+        self.assertEqual(diagnostic.operation_id, report.operations[0].id)
+
+    def test_network_loss_during_mutation_retains_partial_state_without_false_success(
+        self,
+    ):
+        plan = self.preview()
+
+        def disconnected(command, **kwargs):
+            self.install("alpha", "partial-version")
+            now = utc_now()
+            return CommandResult(
+                command.preview(),
+                now,
+                now,
+                1,
+                error=OperationError(
+                    ErrorCode.NETWORK, "Native repository connection was lost."
+                ),
+            )
+
+        self.runner.run.side_effect = disconnected
+        report = self.execute(plan)
+        self.assertEqual(report.operations[0].state, State.FAILED)
+        self.assertEqual(report.operations[0].result.error.code, ErrorCode.NETWORK)
+        self.assertEqual(
+            self.inspector.installed["alpha"].versions, ("partial-version",)
+        )
+        self.assertEqual(report.lifecycle[0].detail, "native_changes_possible")
+        self.runner.run.assert_called_once()
 
     def test_invalid_plan_cannot_execute_and_stale_skip_cannot_mutate(self):
         with self.assertRaises(ValueError):

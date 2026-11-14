@@ -47,7 +47,7 @@ class SupportControls(QObject):
         self.details.setReadOnly(True)
         self.details.setMaximumHeight(120)
         self.details.setPlaceholderText(
-            "Preview exports only app/Python versions, platform identifiers and backend availability. No paths, logs or environment values."
+            "Preview app/Python versions, platform identifiers, backend availability and recent fixed diagnostic codes. No paths, process output or environment values."
         )
         layout.addWidget(self.details)
         row = QHBoxLayout()
