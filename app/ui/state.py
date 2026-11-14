@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QObject, QThread, Signal, Slot
 
+from models.lifecycle import LifecycleRecord
 from persistence.events import SafeEventLog
 from persistence.store import DesktopSettings, StateError, StateStore
 from services.records import AuditRecord
@@ -18,6 +19,7 @@ class StoredState:
     settings: DesktopSettings
     history: tuple[AuditRecord, ...]
     event_log: SafeEventLog | None = field(default=None, repr=False)
+    recovery: tuple[LifecycleRecord, ...] = ()
 
 
 class StateJob(QThread):
@@ -74,13 +76,15 @@ class StateController(QObject):
             store = StateStore(path)
             try:
                 settings, history = store.load_settings(), store.load_history()
+                store.interrupt_active()
+                recovery = store.load_lifecycle()
                 try:
                     event_log = SafeEventLog(path.with_name("events.log"))
                     event_log.record("state-opened")
                 except (StateError, OSError):
                     # An optional log must not make valid saved state unusable.
                     event_log = None
-                return StoredState(store, settings, history, event_log)
+                return StoredState(store, settings, history, event_log, recovery)
             except Exception:
                 store.close()
                 raise

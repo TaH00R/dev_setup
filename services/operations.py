@@ -16,6 +16,7 @@ from system.commands import Approval, CommandResult, OutputSnapshot
 from system.runner import CommandRunner
 
 from .inventory import Inspector
+from .lifecycle import LifecycleStore, package_run
 from .planning import backend_action
 from .records import (
     AuditRecord,
@@ -36,6 +37,7 @@ class OperationService:
         if len(self.inspectors) != len(inspectors):
             raise ValueError("operation inspectors must be unique")
         self.runner = runner
+        self.lifecycle_store: LifecycleStore | None = None
 
     def execute(
         self,
@@ -52,8 +54,16 @@ class OperationService:
         operations: list[Operation] = []
         satisfied: set[str] = set()
         audit = []
+        queued = tuple(Operation(uuid4().hex, item) for item in reviewed.plan.items)
+        lifecycle = package_run(reviewed, consent, queued, self.lifecycle_store)
+        requested_cancel = cancel
 
         def emit(operation: Operation) -> None:
+            lifecycle.operation(
+                operation,
+                dependency_failed,
+                exit_code=command_result.exit_code if command_result else None,
+            )
             if observe:
                 try:
                     observe(
@@ -69,11 +79,12 @@ class OperationService:
                 except Exception:
                     pass  # Observers cannot interrupt cleanup or turn success into failure.
 
-        for item, prepared in zip(reviewed.plan.items, reviewed.prepared):
-            operation = Operation(uuid4().hex, item)
-            emit(operation)
+        for operation, prepared in zip(queued, reviewed.prepared):
+            item = operation.item
+            cancel = lifecycle.cancellation(operation.id, requested_cancel)
             command_result: CommandResult | None = None
             dependency_failed = False
+            emit(operation)
 
             def advance(
                 state: OperationState, *, consent_granted: bool = False
@@ -322,4 +333,11 @@ class OperationService:
                     operation.result.exit_code,
                 )
             )
-        return ExecutionReport(tuple(operations), tuple(audit))
+        return ExecutionReport(
+            tuple(operations),
+            tuple(audit),
+            tuple(lifecycle.errors),
+            next(iter(lifecycle.records.values())).execution_id
+            if lifecycle.records
+            else None,
+        )

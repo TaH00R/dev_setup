@@ -83,6 +83,7 @@ class Controller(QObject):
     progress = Signal(object)
     output = Signal(str, object)
     error = Signal(str)
+    recovery_ready = Signal(object)
 
     def __init__(
         self, services: DesktopServices, parent: QObject | None = None
@@ -157,6 +158,8 @@ class Controller(QObject):
             if isinstance(value, ExecutionReport):
                 self.history.extend(value.audit)
             self.execution_ready.emit(value)
+        elif kind == "recovery":
+            self.recovery_ready.emit(value)
 
     def cancel(self) -> None:
         if self.job:

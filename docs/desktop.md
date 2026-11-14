@@ -33,6 +33,9 @@ native readers are reviewed. The UI explains this rather than guessing support.
   new plan for review; checking never installs anything.
 - **Queue** shows active and waiting plan items, terminal results, exit status,
   structured errors and bounded stdout/stderr. Native output remains plain text.
+  On restart, unfinished native operations appear here with an unknown outcome.
+  Inspect current inventory, then explicitly acknowledge the observation. Recovery
+  never reruns an operation or claims rollback. See [lifecycle recovery](lifecycle.md).
 - **History** displays up to 200 output-free audit records loaded from local
   storage, including approved runtime operations. SQLite retains up to 2,000.
 - **Settings** saves the light/dark theme, search delay and live-search preference,

@@ -1,6 +1,6 @@
 # Local settings, history and diagnostics
 
-Dev Setup keeps desktop preferences and completed operation metadata in an
+Dev Setup keeps desktop preferences and operation lifecycle metadata in an
 application-owned SQLite database. Importing the core does not create a database,
 read desktop preferences, or start a background process. `StateStore(path)` opens
 an explicitly selected database; desktop startup selects its normal location.
@@ -22,14 +22,16 @@ These files are not encrypted; their schema deliberately excludes secrets.
 
 | Field | Default | Accepted values |
 | --- | --- | --- |
-| `theme` | `light` | `light`, `dark` |
+| `theme` | `dark` | `light`, `dark` |
 | `search_delay_ms` | `250` | integer from 150 through 1000 |
 | `live_search` | `True` | an actual boolean |
 
 `load_settings()` returns defaults when no preference row exists.
 `save_settings(settings)` changes only the validated preference row. Invalid saved
 data produces a safe `StateError`; callers can show defaults without overwriting
-the database. The desktop performs state I/O on its state worker, rather than
+the database. Preferences/history use the state worker. Durable lifecycle
+checkpoints run synchronously on the native-operation worker before dispatch;
+inspection uses a recovery worker. The store serializes these connections without
 blocking the Qt event loop.
 
 ## Audit history
@@ -45,17 +47,23 @@ operation ID with identical metadata is harmless; changing that operation's
 metadata refuses the entire batch. The newest 2000 records are retained.
 `load_history(limit=200)` returns records **newest first**, ordered by completion
 timestamp and insertion order for ties. The maximum read limit is 2000.
-`clear_history()` deletes audit records while retaining preferences.
+`clear_history()` deletes audit and completed/reconciled lifecycle records while
+retaining preferences and all lifecycle evidence for executions with unresolved
+interrupted/active items, so partial-plan context is preserved.
 
-The database is an operation history, not a durable execution queue. A process
-crash before a completed report is saved can leave a history gap. A persistence
-failure must be shown separately from the actual native operation result; it does
-not turn a successful installation into a failed installation or imply rollback.
+The database contains durable execution evidence, not an automatically replayed
+queue. Package/runtime operations save all queued IDs, reviewed plan identity,
+hashed before-inventory evidence and phase checkpoints before starting commands.
+Startup marks nonterminal records interrupted with an unknown outcome. Queue
+offers explicit read-only native inspection and acknowledged reconciliation;
+it never retries or undoes native changes. A persistence failure after execution
+is shown separately from the actual native result. See [lifecycle recovery](lifecycle.md).
 
 ## Schema upgrades and recovery
 
-The SQLite `user_version` is currently 2. Version 1 contains audit history; version
-2 adds the singleton settings table. A new database creates both. Migrations use
+The SQLite `user_version` is currently 3. Version 1 contains audit history; version
+2 adds the singleton settings table; version 3 adds validated lifecycle metadata.
+A new database creates all three tables. Migrations use
 an explicit transaction and preserve history. A failed migration rolls back both
 schema changes and the version number. A database from a newer version, an
 unrecognized schema, or an existing unversioned database is refused without

@@ -7,6 +7,7 @@ from PySide6.QtCore import QTimer, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QMainWindow,
+    QVBoxLayout,
 )
 
 from models.catalog import Package
@@ -18,6 +19,7 @@ from services.desktop import (
     InstalledRow,
     UpdateReport,
 )
+from services.lifecycle import UnavailableLifecycleStore
 from services.records import PackageRequest
 
 from .components import fill_table, scroll_page
@@ -32,6 +34,7 @@ from .pages.installed import InstalledPage
 from .pages.queue import QueuePage
 from .pages.settings import SettingsPage
 from .pages.updates import UpdatesPage
+from .recovery import RecoveryPanel
 from .search import SearchController
 from .session_presenter import SessionPresenter
 from .state import StateController
@@ -202,7 +205,11 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(scroll_page(self.settings_page))
         self.environment = EnvironmentPages(
             services,
-            lambda: not self.controller.busy and not self.clearing_history,
+            lambda: (
+                not self.controller.busy
+                and not self.clearing_history
+                and not self.state_loading
+            ),
             self,
         )
         self.stack.addWidget(self.environment.presets_page)
@@ -210,6 +217,12 @@ class MainWindow(QMainWindow):
         self.environment.package_review.connect(self._review)
         self.environment.runtime_audit.connect(self._runtime_audit)
         self.environment.busy_changed.connect(self._environment_busy)
+        self.recovery = RecoveryPanel(
+            services, self.environment.runtime_service, self.controller
+        )
+        queue_layout = self.queue_page.layout()
+        assert isinstance(queue_layout, QVBoxLayout)
+        queue_layout.insertWidget(0, self.recovery)
         self.controller.external_busy = lambda: (
             self.environment.controller.busy or self.clearing_history
         )
@@ -234,6 +247,9 @@ class MainWindow(QMainWindow):
         self.debounce.valueChanged.connect(self._preferences_changed)
         self.live_enabled.toggled.connect(self._preferences_changed)
         if state_path is not None:
+            unavailable = UnavailableLifecycleStore()
+            self.services.operations.lifecycle_store = unavailable
+            self.environment.runtime_service.lifecycle_store = unavailable
             self._settings_enabled(False)
             self.state_controller.startup(state_path)
         if auto_refresh:
@@ -249,6 +265,7 @@ class MainWindow(QMainWindow):
     @Slot(bool)
     def _busy(self, busy: bool) -> None:
         busy = busy or self.environment.controller.busy or self.clearing_history
+        self.recovery.set_busy(busy)
         self.environment.set_external_busy(
             self.controller.busy or self.clearing_history
         )

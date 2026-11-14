@@ -11,11 +11,13 @@ from models.environment import (
     RuntimeResult,
 )
 from models.errors import ErrorCode, OperationError
+from models.lifecycle import LifecycleState
 from models.operations import OperationState
 from models.planning import utc_now
 from models.platform import Platform
 from package_managers.base import AdapterError
 from runtimes.adapters import RuntimeManager, default_adapters
+from services.lifecycle import LifecycleStore, runtime_run
 from system.commands import Approval, CommandResult
 from system.runner import CommandRunner, OutputObserver
 
@@ -28,6 +30,7 @@ class RuntimeService:
         adapters: tuple[RuntimeManager, ...] | None = None,
     ) -> None:
         self.host, self.runner = host, runner
+        self.lifecycle_store: LifecycleStore | None = None
         self.adapters = {
             a.id: a
             for a in (adapters if adapters is not None else default_adapters(host))
@@ -92,6 +95,11 @@ class RuntimeService:
             )
         result: CommandResult | None = None
         operation_id = str(uuid4())
+        lifecycle = runtime_run(
+            plan, operation_id, self.host, consent.approved_at, self.lifecycle_store
+        )
+        cancel = lifecycle.cancellation(operation_id, cancel)
+        lifecycle.transition(operation_id, LifecycleState.RESOLVING)
 
         def finish(
             state: OperationState, message: str, error: OperationError | None = None
@@ -107,7 +115,23 @@ class RuntimeService:
                 utc_now(),
                 result.exit_code if result else None,
             )
-            return RuntimeResult(state, message, result, error, audit)
+            lifecycle.transition(
+                operation_id,
+                LifecycleState(state.value),
+                exit_code=result.exit_code if result else None,
+                verification="verified"
+                if state == OperationState.SUCCEEDED
+                else "failed"
+                if error and error.code == ErrorCode.VERIFICATION_FAILED
+                else "unknown",
+                detail="native_changes_possible"
+                if lifecycle.records[operation_id].mutation_started
+                and state != OperationState.SUCCEEDED
+                else "none",
+            )
+            return RuntimeResult(
+                state, message, result, error, audit, tuple(lifecycle.errors)
+            )
 
         try:
             adapter = self._adapter(plan.request)
@@ -128,6 +152,17 @@ class RuntimeService:
                     ErrorCode.VERIFICATION_FAILED,
                     "Runtime inventory changed; review a fresh plan.",
                 )
+            lifecycle.transition(operation_id, LifecycleState.AWAITING_CONSENT)
+            if cancel.is_set():
+                return finish(
+                    OperationState.CANCELLED,
+                    "Runtime installation was cancelled before execution.",
+                )
+            if not lifecycle.transition(operation_id, LifecycleState.INSTALLING):
+                raise AdapterError(
+                    ErrorCode.UNKNOWN,
+                    "Lifecycle checkpoint could not be saved; no runtime installation was started.",
+                )
             result = self.runner.run(
                 command, approval=Approval(command), cancel=cancel, observe=observe
             )
@@ -141,6 +176,9 @@ class RuntimeService:
                     else OperationState.FAILED
                 )
                 return finish(state, error.message, error)
+            lifecycle.transition(
+                operation_id, LifecycleState.VERIFYING, exit_code=result.exit_code
+            )
             if plan.request.version not in self._installed(
                 adapter, plan.request, cancel
             ):

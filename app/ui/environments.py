@@ -482,6 +482,11 @@ class EnvironmentPages(QObject):
                     if value.error
                     else ""
                 )
+                + (
+                    " " + " ".join(value.persistence_errors)
+                    if value.persistence_errors
+                    else ""
+                )
             )
             if value.command_result:
                 result = value.command_result

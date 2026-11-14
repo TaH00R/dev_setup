@@ -26,7 +26,7 @@ class OperationPresenter(QObject):
 
     @Slot(object)
     def _review(self, reviewed: ReviewedPlan) -> None:
-        if self.view.pending_close:
+        if self.view.pending_close or self.view.state_loading:
             self.view.controller.release_review()
             return
         if (
@@ -151,5 +151,10 @@ class OperationPresenter(QObject):
                 )
         self.view._history_rows()
         self.view.status.setText(
-            "Plan finished. Review results in Queue; refresh inventory to inspect current state."
+            f"Plan finished. Outcome: {report.outcome.value}. Review Queue and refresh inventory."
+            + (
+                " " + " ".join(report.persistence_errors)
+                if report.persistence_errors
+                else ""
+            )
         )

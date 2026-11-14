@@ -26,10 +26,12 @@ else:
 from models.environment import RuntimeAudit, RuntimeResult
 from models.operations import OperationState
 from models.planning import utc_now
+from package_managers.base import AdapterError
 from persistence.store import DesktopSettings, StateError, StateStore
-from services.records import AuditRecord, ExecutionReport
+from services.records import AuditRecord, ExecutionReport, PackageRequest, PlanConsent
 from services.updates import UpdateCheck
 from tests.fixtures.desktop import DesktopFixture
+from tests.fixtures.lifecycle import active_run
 
 
 @unittest.skipUnless(QT_AVAILABLE, "Install requirements-gui.txt for desktop tests.")
@@ -107,6 +109,77 @@ class PersistentDesktopTests(unittest.TestCase):
             window._completed(ExecutionReport((), (self.audit(),)))
             constructor.assert_not_called()
         self.assertFalse(self.path.exists())
+
+    def test_startup_recovery_requires_inspection_and_explicit_acknowledgement(self):
+        store = StateStore(self.path)
+        try:
+            active_run(self.fixture, store)
+        finally:
+            store.close()
+        self.fixture.runner.run.reset_mock()
+        window = self.open_window()
+        self.assertEqual(window.navigation.currentRow(), 4)
+        panel = window.recovery
+        self.assertTrue(panel.isVisible())
+        self.assertEqual(panel.records[0].verification, "unknown")
+        self.assertTrue(panel.inspect_button.isEnabled())
+        self.assertFalse(panel.acknowledge.isEnabled())
+        self.fixture.runner.run.assert_not_called()
+        self.fixture.install(version="2.0")
+        panel.inspect_button.click()
+        self.wait_for(lambda: not window.controller.busy)
+        self.assertEqual(panel.records[0].verification, "matches_expected")
+        self.assertTrue(panel.acknowledge.isEnabled())
+        with mock.patch(
+            "app.ui.recovery.QMessageBox.question",
+            return_value=QMessageBox.StandardButton.No,
+        ) as question:
+            panel.acknowledge.click()
+        self.assertEqual(question.call_args.args[-1], QMessageBox.StandardButton.No)
+        self.assertTrue(panel.records[0].needs_recovery)
+        with mock.patch(
+            "app.ui.recovery.QMessageBox.question",
+            return_value=QMessageBox.StandardButton.Yes,
+        ):
+            panel.acknowledge.click()
+        self.wait_for(lambda: not window.controller.busy)
+        self.assertFalse(panel.records[0].needs_recovery)
+        self.assertFalse(self.fixture.mutations)
+        self.fixture.runner.run.assert_not_called()
+        window.close()
+        second = self.open_window()
+        self.assertFalse(second.recovery.records[0].needs_recovery)
+
+    def test_recovery_inspection_runs_off_gui_thread_and_disables_actions_while_busy(
+        self,
+    ):
+        store = StateStore(self.path)
+        try:
+            active_run(self.fixture, store)
+        finally:
+            store.close()
+        window = self.open_window()
+        entered = threading.Event()
+        threads = []
+        original = self.fixture.inventory
+
+        def blocked(cancel=None):
+            threads.append(threading.get_ident())
+            entered.set()
+            self.release.wait(5)
+            return original(cancel)
+
+        with mock.patch.object(self.fixture, "inventory", blocked):
+            window.recovery.inspect_button.click()
+            self.wait_for(entered.is_set)
+            self.assertFalse(window.recovery.inspect_button.isEnabled())
+            self.assertFalse(window.recovery.acknowledge.isEnabled())
+            self.assertNotEqual(threads[0], threading.main_thread().ident)
+            window.controller.cancel()
+            self.release.set()
+            self.wait_for(lambda: not window.controller.busy)
+        self.assertEqual(window.recovery.records[0].verification, "unknown")
+        self.assertFalse(self.fixture.mutations)
 
     def test_new_and_ephemeral_windows_default_to_dark(self):
         for persistent in (False, True):
@@ -255,6 +328,12 @@ class PersistentDesktopTests(unittest.TestCase):
         self.assertTrue(window.theme.isEnabled())
         window._completed(ExecutionReport((), (self.audit(),)))
         self.assertEqual(window.controller.history[-1].state, "succeeded")
+        reviewed = self.fixture.services.planner.preview((PackageRequest("git"),))
+        with self.assertRaises(AdapterError):
+            self.fixture.services.operations.execute(
+                reviewed, consent=PlanConsent(reviewed, True)
+            )
+        self.assertFalse(self.fixture.mutations)
 
     def test_diagnostics_preview_export_is_exclusive_and_updates_are_manual_disabled(
         self,

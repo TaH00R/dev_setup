@@ -137,6 +137,7 @@ class RuntimeResult:
     command_result: CommandResult | None = field(default=None, repr=False)
     error: OperationError | None = None
     audit: RuntimeAudit | None = None
+    persistence_errors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

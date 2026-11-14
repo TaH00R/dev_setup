@@ -14,11 +14,12 @@ from pathlib import Path
 from threading import RLock
 
 from models._validation import identifier, text
+from models.lifecycle import LifecycleRecord, LifecycleState
 from models.planning import aware_timestamp
 from services.records import AuditRecord
 from system.commands import Redactor
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 _AUDIT_COLUMNS = (
     "operation_id",
     "package_id",
@@ -155,6 +156,14 @@ class StateStore:
                 )
                 if columns != ("singleton", "theme", "search_delay_ms", "live_search"):
                     raise StateError("The existing settings schema is unsupported.")
+            if version < 3:
+                database.execute(
+                    "CREATE TABLE lifecycle (operation_id TEXT PRIMARY KEY, record TEXT NOT NULL)"
+                )
+            elif tuple(
+                row[1] for row in database.execute("PRAGMA table_info(lifecycle)")
+            ) != ("operation_id", "record"):
+                raise StateError("The existing lifecycle schema is unsupported.")
             database.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             database.commit()
         except Exception:
@@ -298,7 +307,154 @@ class StateStore:
 
     def clear_history(self) -> None:
         with self._connection() as database:
+            database.execute("BEGIN IMMEDIATE")
             database.execute("DELETE FROM audit")
+            records = self._lifecycle_rows(database)
+            protected_executions = {
+                record.execution_id
+                for record in records
+                if not record.state.terminal or record.needs_recovery
+            }
+            for record in records:
+                if record.execution_id not in protected_executions:
+                    database.execute(
+                        "DELETE FROM lifecycle WHERE operation_id=?",
+                        (record.operation_id,),
+                    )
+            database.commit()
+
+    @staticmethod
+    def _lifecycle_rows(database: sqlite3.Connection) -> tuple[LifecycleRecord, ...]:
+        try:
+            return tuple(
+                LifecycleRecord.from_json(row[0])
+                for row in database.execute(
+                    "SELECT record FROM lifecycle ORDER BY rowid"
+                )
+            )
+        except (ValueError, TypeError, KeyError):
+            raise StateError(
+                "Saved lifecycle evidence failed validation; raw content was omitted."
+            ) from None
+
+    def load_lifecycle(self) -> tuple[LifecycleRecord, ...]:
+        with self._connection() as database:
+            return self._lifecycle_rows(database)
+
+    def save_lifecycle(self, record: LifecycleRecord) -> None:
+        if not isinstance(record, LifecycleRecord):
+            raise ValueError("Lifecycle writes require validated metadata.")
+        with self._connection() as database:
+            database.execute("BEGIN IMMEDIATE")
+            row = database.execute(
+                "SELECT record FROM lifecycle WHERE operation_id=?",
+                (record.operation_id,),
+            ).fetchone()
+            if row is not None:
+                previous = LifecycleRecord.from_json(row[0])
+                identity_fields = (
+                    "execution_id",
+                    "plan_id",
+                    "plan_identity",
+                    "family",
+                    "package_id",
+                    "native_id",
+                    "backend",
+                    "source_id",
+                    "host_identity",
+                    "action",
+                    "expected_version",
+                    "before_identity",
+                    "approved_at",
+                    "created_at",
+                )
+                if (
+                    any(
+                        getattr(previous, field) != getattr(record, field)
+                        for field in identity_fields
+                    )
+                    or record.updated_at < previous.updated_at
+                ):
+                    raise StateError(
+                        "Lifecycle identity or chronology changed; write refused."
+                    )
+                if (
+                    previous.state.terminal
+                    and previous.state != LifecycleState.INTERRUPTED
+                    and previous != record
+                ):
+                    raise StateError("Completed execution evidence is immutable.")
+                if previous.reconciled_at is not None and previous != record:
+                    raise StateError("Reconciled evidence is immutable.")
+                if not previous.state.terminal and previous != record:
+                    successor = previous.advance(
+                        record.state, verification=record.verification
+                    )
+                    if successor.state != record.state:
+                        raise StateError(
+                            "Cancellation requests cannot be erased before a terminal outcome."
+                        )
+                    if previous.mutation_started and not record.mutation_started:
+                        raise StateError("Native mutation evidence cannot be erased.")
+                    if (
+                        previous.cancel_requested_at is not None
+                        and previous.cancel_requested_at != record.cancel_requested_at
+                    ):
+                        raise StateError(
+                            "Cancellation request evidence cannot be erased."
+                        )
+                    if (
+                        previous.started_at is not None
+                        and previous.started_at != record.started_at
+                    ):
+                        raise StateError(
+                            "Execution start evidence cannot be rewritten."
+                        )
+                    if record.state.terminal and record.phase != previous.phase:
+                        raise StateError(
+                            "The last execution phase cannot change at completion."
+                        )
+                if previous.state.terminal and (
+                    record.state != previous.state
+                    or record.exit_code != previous.exit_code
+                    or record.phase != previous.phase
+                    or record.mutation_started != previous.mutation_started
+                    or record.detail != previous.detail
+                    or record.started_at != previous.started_at
+                    or record.finished_at != previous.finished_at
+                    or record.cancel_requested_at != previous.cancel_requested_at
+                ):
+                    raise StateError(
+                        "A completed lifecycle cannot be rewritten or resumed."
+                    )
+            database.execute(
+                "INSERT INTO lifecycle VALUES(?,?) ON CONFLICT(operation_id) DO UPDATE SET record=excluded.record",
+                (record.operation_id, record.to_json()),
+            )
+            database.commit()
+
+    def interrupt_active(self) -> tuple[LifecycleRecord, ...]:
+        """Startup recovery only: preserve evidence, never execute/retry anything."""
+        with self._connection() as database:
+            database.execute("BEGIN IMMEDIATE")
+            records = self._lifecycle_rows(database)
+            for record in records:
+                if not record.state.terminal:
+                    interrupted = record.advance(
+                        LifecycleState.INTERRUPTED,
+                        verification="unknown",
+                        detail="outcome_unknown",
+                    )
+                    database.execute(
+                        "UPDATE lifecycle SET record=? WHERE operation_id=?",
+                        (interrupted.to_json(), record.operation_id),
+                    )
+            database.commit()
+            return tuple(
+                record
+                for record in self._lifecycle_rows(database)
+                if record.needs_recovery
+            )
 
     def close(self) -> None:
         with self._lock:

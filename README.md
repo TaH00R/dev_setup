@@ -92,6 +92,9 @@ Settings; native searches may access the network. See the [discovery guide](docs
 Install, remove, and update actions for curated tools open a
 plan review; administrator prompts need a separate approval. Settings and audit
 history are saved locally in SQLite; process output stays in the current session.
+Native operations also save lifecycle checkpoints. Interrupted work opens in
+Queue for explicit inspection and acknowledgement, without automatic retries;
+see [operation recovery](docs/lifecycle.md).
 Storage failures leave the current session usable and show a warning. Windows can browse the catalog, but native
 package management there is not enabled yet. See the [desktop guide](docs/desktop.md)
 for the workflow and current limits.

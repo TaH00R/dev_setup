@@ -78,6 +78,12 @@ because project-local runtimes differ from system application installation.
 Database work runs through a dedicated Qt worker. Persisted history contains
 operation metadata rather than process output or environment values. Startup
 failures retain the existing database and allow the session to continue.
+Lifecycle checkpoints also use the store from native-operation workers, committing
+before command dispatch. `models/lifecycle.py` separates durable cancellation,
+interruption and inspection evidence from legacy per-item execution states and
+defines aggregate plan outcomes. `services/lifecycle.py` coordinates these
+checkpoints and read-only native recovery. Startup and Queue never replay a
+stored command; lifecycle rows contain no command strings or raw output.
 Release verification never executes a downloaded artifact; a build without a
 pinned release channel makes no update request.
 

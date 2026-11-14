@@ -153,6 +153,16 @@ run native installs or native inspection commands on the development machine.
 Cross-platform native-version compatibility, real consent/elevation prompts and
 clean-machine integration remain unverified.
 
+## Durable lifecycle and recovery
+
+Current durability additions are described in [operation lifecycle and recovery](lifecycle.md).
+Package/runtime workers commit reviewed identity and phase evidence before native
+dispatch. Execution reports expose an aggregate plan outcome separately from item
+results and expose persistence warnings separately from native success/failure.
+Unfinished operations require explicit read-only inspection and acknowledgement
+before a matching mutation can start again. The historical checks below retain
+their original scope and dates.
+
 ## Step 6 local validation
 
 Windows/CPython 3.14.7 on 2026-11-11:

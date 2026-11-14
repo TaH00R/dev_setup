@@ -5,6 +5,7 @@ from datetime import datetime
 
 from models._validation import identifier
 from models.inventory import InstalledPackage, NativeReview
+from models.lifecycle import PlanOutcome, aggregate
 from models.operations import Operation
 from models.package import PackageVersion
 from models.planning import InstallPlan, OperationAction, aware_timestamp, utc_now
@@ -75,7 +76,7 @@ class PlanConsent:
 
 @dataclass(frozen=True)
 class AuditRecord:
-    """In-memory, output-free history; durable persistence belongs to step 10."""
+    """Output-free terminal history, separate from durable execution checkpoints."""
 
     operation_id: str
     package_id: str
@@ -93,3 +94,9 @@ class AuditRecord:
 class ExecutionReport:
     operations: tuple[Operation, ...]
     audit: tuple[AuditRecord, ...]
+    persistence_errors: tuple[str, ...] = ()
+    execution_id: str | None = None
+
+    @property
+    def outcome(self) -> PlanOutcome:
+        return aggregate(tuple(operation.state.value for operation in self.operations))

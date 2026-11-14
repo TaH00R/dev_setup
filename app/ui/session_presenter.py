@@ -80,6 +80,7 @@ class SessionPresenter(QObject):
         self.view.log_cache.clear()
         self.view.queue_table.setRowCount(0)
         self.view.log_view.clear()
+        self.view.recovery.clear_resolved()
         self.view._history_rows()
         self.view.status.setText("History and session logs cleared.")
 
@@ -140,6 +141,9 @@ class SessionPresenter(QObject):
     def _state_loaded(self, snapshot: object) -> None:
         if not isinstance(snapshot, StoredState):
             return
+        self.view.services.operations.lifecycle_store = snapshot.store
+        self.view.environment.runtime_service.lifecycle_store = snapshot.store
+        self.view.recovery.configure(snapshot.store, snapshot.recovery)
         self.view.restoring_state = True
         settings = snapshot.settings
         self.view.theme.setCurrentIndex(1 if settings.theme == "dark" else 0)
@@ -154,6 +158,11 @@ class SessionPresenter(QObject):
             "Settings and output-free history are saved locally."
         )
         self.view._search()
+        if any(record.needs_recovery for record in snapshot.recovery):
+            self.view.navigation.setCurrentRow(4)
+            self.view.status.setText(
+                "Interrupted work found. Inspect current native state in Queue; no operation has been rerun."
+            )
 
     def _state_saved(self, kind: str) -> None:
         if kind == "clear":

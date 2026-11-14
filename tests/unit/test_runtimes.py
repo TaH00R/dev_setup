@@ -10,12 +10,15 @@ from unittest.mock import Mock, patch
 
 from models.environment import RuntimeConsent, RuntimeRequest
 from models.errors import ErrorCode, OperationError
+from models.lifecycle import LifecycleState
 from models.operations import OperationState
 from models.planning import utc_now
 from models.platform import Architecture, OperatingSystem, Platform
 from package_managers.base import AdapterError, BackendAction
+from persistence.store import StateStore
 from runtimes.adapters import Mise, Rustup, Uv
 from runtimes.service import RuntimeService
+from services.lifecycle import RecoveryService, runtime_run
 from system.commands import CommandResult
 
 
@@ -165,12 +168,71 @@ class RuntimeTests(unittest.TestCase):
         mutation = self.runner.run.call_args_list[2]
         self.assertTrue(mutation.args[0].mutates)
         self.assertTrue(mutation.kwargs["approval"].permits(plan.command))
-        self.assertIs(mutation.kwargs["cancel"], cancel)
+        self.assertIs(mutation.kwargs["cancel"].original, cancel)
+        cancel.set()
+        self.assertTrue(mutation.kwargs["cancel"].is_set())
         self.assertEqual(result.audit.manager, "uv")
         self.assertEqual(result.audit.runtime, "python")
         self.assertEqual(result.audit.version, "3.13.2")
         self.assertEqual(result.audit.plan_id, plan.id)
         self.assertEqual(result.audit.state, OperationState.SUCCEEDED)
+
+    def test_runtime_interruption_is_inspected_read_only_after_restart(self):
+        self.runner.run.return_value = self.result()
+        plan = self.service.preview(self.request)
+        store = StateStore(Path(self.directory.name) / "state.sqlite3")
+        self.addCleanup(store.close)
+        run = runtime_run(plan, "runtime-operation", self.host, utc_now(), store)
+        for state in (
+            LifecycleState.RESOLVING,
+            LifecycleState.AWAITING_CONSENT,
+            LifecycleState.INSTALLING,
+        ):
+            run.transition("runtime-operation", state)
+        record = store.interrupt_active()[0]
+        installed = json.dumps(
+            [
+                {
+                    "key": "cpython-3.13.2-windows-x86_64-none",
+                    "path": "runtime/python.exe",
+                }
+            ]
+        )
+        self.runner.run.return_value = self.result(installed)
+        self.runner.run.reset_mock()
+        recovery = RecoveryService(store, self.host, (), self.service)
+        observed = recovery.inspect(record)
+        self.assertEqual(observed.verification, "matches_expected")
+        self.assertEqual(observed.state, LifecycleState.INTERRUPTED)
+        self.assertEqual(self.runner.run.call_count, 1)
+        self.assertFalse(self.runner.run.call_args.args[0].mutates)
+
+    def test_runtime_lifecycle_records_verified_execution(self):
+        store = StateStore(Path(self.directory.name) / "state.sqlite3")
+        self.addCleanup(store.close)
+        self.service.lifecycle_store = store
+        installed = json.dumps(
+            [
+                {
+                    "key": "cpython-3.13.2-windows-x86_64-none",
+                    "path": "runtime/python.exe",
+                }
+            ]
+        )
+        self.runner.run.side_effect = [
+            self.result(),
+            self.result(),
+            self.result(),
+            self.result(installed),
+        ]
+        plan = self.service.preview(self.request)
+        result = self.service.execute(plan, RuntimeConsent(plan, True))
+        record = store.load_lifecycle()[0]
+        self.assertEqual(record.operation_id, result.audit.operation_id)
+        self.assertEqual(record.plan_id, plan.id)
+        self.assertEqual(record.family, "runtime")
+        self.assertEqual(record.state, LifecycleState.SUCCEEDED)
+        self.assertEqual(record.verification, "verified")
         self.assertEqual(result.audit.exit_code, 0)
 
     def test_zero_exit_without_matching_version_is_failure(self):
