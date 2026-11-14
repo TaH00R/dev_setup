@@ -13,7 +13,10 @@ from models.platform import Platform
 from models.specs import InstallSpec
 from package_managers.base import AdapterError, BackendAction
 from services.catalog.service import CatalogService
+from system.coordination import NativeCoordinator
+from system.identity import IdentityError, bind
 
+from .coordination import access
 from .inventory import Inspector
 from .records import PackageRequest, PreparedItem, ReviewedPlan
 
@@ -28,6 +31,7 @@ class Planner:
     ) -> None:
         self.catalog = catalog
         self.host = host
+        self.coordinator = NativeCoordinator()
         self.inspectors = {i.adapter.id: i for i in inspectors}
         if len(self.inspectors) != len(inspectors) or any(
             i.adapter.host != host for i in inspectors
@@ -35,6 +39,18 @@ class Planner:
             raise ValueError("inspectors must be unique and match the target platform")
 
     def preview(
+        self,
+        requests: tuple[PackageRequest, ...],
+        *,
+        cancel: Event | None = None,
+        observations: tuple[Detection, ...] = (),
+    ) -> ReviewedPlan:
+        if cancel is not None and cancel.is_set():
+            return self._preview(requests, cancel=cancel, observations=observations)
+        with access(self.coordinator, cancel):
+            return self._preview(requests, cancel=cancel, observations=observations)
+
+    def _preview(
         self,
         requests: tuple[PackageRequest, ...],
         *,
@@ -290,7 +306,7 @@ class Planner:
                                 ErrorCode.VERIFICATION_FAILED,
                                 "Native review did not identify transaction effects.",
                             )
-                        command = inspector.adapter.build(action, spec=spec)
+                        command = bind(inspector.adapter.build(action, spec=spec))
                         changes = tuple(
                             dict.fromkeys(
                                 (
@@ -307,6 +323,7 @@ class Planner:
                                         if d.package_id == package_id and d.present
                                     ),
                                     "Native package-manager hooks may change the system; no rollback is implemented.",
+                                    "Resolved launch files are fingerprinted and rechecked before dispatch; changed identity requires a fresh review.",
                                     "Native installed inventory verifies package identity/version, not service health or historical download provenance.",
                                 )
                             )
@@ -341,6 +358,8 @@ class Planner:
                 prepared.append(PreparedItem(command, installed, review))
             except AdapterError as error:
                 issue(error.error.code, error.error.message)
+            except IdentityError as error:
+                issue(ErrorCode.VERIFICATION_FAILED, str(error))
         if issues:
             # In particular, avoid PlanItem's topological invariant masking an
             # earlier failed dependency inspection with a constructor exception.

@@ -13,10 +13,13 @@ from models.operations import Operation, OperationResult, OperationState, Progre
 from models.planning import OperationAction, utc_now
 from package_managers.base import AdapterError
 from system.commands import Approval, CommandResult, OutputSnapshot
+from system.coordination import NativeCoordinator
+from system.identity import IdentityError, bind
 from system.runner import CommandRunner
 
+from .coordination import access
 from .inventory import Inspector
-from .lifecycle import LifecycleStore, package_run
+from .lifecycle import LifecycleStore, MemoryLifecycleStore, package_run
 from .planning import backend_action
 from .records import (
     AuditRecord,
@@ -37,9 +40,37 @@ class OperationService:
         if len(self.inspectors) != len(inspectors):
             raise ValueError("operation inspectors must be unique")
         self.runner = runner
+        self.coordinator = NativeCoordinator()
         self.lifecycle_store: LifecycleStore | None = None
+        self.session_store = MemoryLifecycleStore()
+
+    @property
+    def effective_store(self) -> LifecycleStore:
+        return (
+            self.lifecycle_store
+            if self.lifecycle_store is not None
+            else self.session_store
+        )
 
     def execute(
+        self,
+        reviewed: ReviewedPlan,
+        *,
+        consent: PlanConsent | None = None,
+        cancel: Event | None = None,
+        observe: StateObserver | None = None,
+        logs: LogObserver | None = None,
+    ) -> ExecutionReport:
+        if cancel is not None and cancel.is_set():
+            return self._execute(
+                reviewed, consent=consent, cancel=cancel, observe=observe, logs=logs
+            )
+        with access(self.coordinator, cancel):
+            return self._execute(
+                reviewed, consent=consent, cancel=cancel, observe=observe, logs=logs
+            )
+
+    def _execute(
         self,
         reviewed: ReviewedPlan,
         *,
@@ -55,7 +86,7 @@ class OperationService:
         satisfied: set[str] = set()
         audit = []
         queued = tuple(Operation(uuid4().hex, item) for item in reviewed.plan.items)
-        lifecycle = package_run(reviewed, consent, queued, self.lifecycle_store)
+        lifecycle = package_run(reviewed, consent, queued, self.effective_store)
         requested_cancel = cancel
 
         def emit(operation: Operation) -> None:
@@ -216,8 +247,10 @@ class OperationService:
                                         ErrorCode.VERIFICATION_FAILED,
                                         "Candidate metadata or native transaction changed; new review and approval are required.",
                                     )
-                                rebuilt = inspector.adapter.build(
-                                    backend_action(item.action), spec=item.spec
+                                rebuilt = bind(
+                                    inspector.adapter.build(
+                                        backend_action(item.action), spec=item.spec
+                                    )
                                 )
                                 if rebuilt != command:
                                     raise AdapterError(
@@ -288,6 +321,12 @@ class OperationService:
                                             OperationState.SUCCEEDED,
                                             "Native operation completed and installed inventory verified its result.",
                                         )
+            except IdentityError as error:
+                finish(
+                    OperationState.FAILED,
+                    "Launch identity changed; review and approve a fresh plan.",
+                    OperationError(ErrorCode.VERIFICATION_FAILED, str(error)),
+                )
             except AdapterError as error:
                 finish(
                     OperationState.CANCELLED
@@ -340,4 +379,5 @@ class OperationService:
             next(iter(lifecycle.records.values())).execution_id
             if lifecycle.records
             else None,
+            tuple(lifecycle.records.values()),
         )

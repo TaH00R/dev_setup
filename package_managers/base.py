@@ -10,9 +10,11 @@ from enum import Enum
 from pathlib import Path
 
 from models.errors import ErrorCode, OperationError
+from models.planning import utc_now
 from models.platform import OperatingSystem, Platform
 from models.specs import InstallSpec, PrivilegeRequirement
 from system.commands import Approval, Command, CommandResult
+from system.identity import IdentityError, bind
 from system.runner import CommandRunner, OutputObserver
 
 
@@ -188,6 +190,7 @@ class PackageManager(ABC):
         source_id: str | None = None,
         privilege: PrivilegeRequirement = PrivilegeRequirement.NONE,
         environment: tuple[tuple[str, str], ...] = (),
+        launch_paths: tuple[str, ...] = (),
     ) -> Command:
         mutates = action in {
             BackendAction.INSTALL,
@@ -203,6 +206,7 @@ class PackageManager(ABC):
             privilege,
             1800.0 if mutates else 30.0,
             environment,
+            launch_paths,
         )
 
     def version(self) -> Command:
@@ -239,4 +243,19 @@ class PackageManager(ABC):
     ) -> CommandResult:
         """Worker-only execution; rebuild the validated request and bind approval exactly."""
         command = self.build(action, spec=spec, query=query)
+        if (
+            command.requires_consent
+            and approval is not None
+            and approval.command.launch_files
+        ):
+            try:
+                command = bind(command)
+            except IdentityError as error:
+                now = utc_now()
+                return CommandResult(
+                    command.preview(),
+                    now,
+                    now,
+                    error=OperationError(ErrorCode.VERIFICATION_FAILED, str(error)),
+                )
         return runner.run(command, approval=approval, cancel=cancel, observe=observe)

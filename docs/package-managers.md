@@ -12,6 +12,13 @@ table below records the initial step 4 implementation.
 
 ## Adapter contract
 
+Current execution also uses the shared [native-access guard and launch identity](native-safety.md).
+Command builders remain declarative. A mutation review binds the command with
+`system.identity.bind()` before recording exact approval; execution rebuilds and
+compares that identity and the runner checks again before spawning. Unbound
+consent-bearing requests cannot execute. Prefer the operation services, which
+also preserve lifecycle, dependency, source and verification rules.
+
 `PackageManager` exposes `availability()`, `capabilities`, `version()`,
 `search(query)`, `install(spec)`, `uninstall(spec)`, `upgrade(spec)`,
 `list_installed()`, `show(spec)`, and `build(action, ...)`. These methods build

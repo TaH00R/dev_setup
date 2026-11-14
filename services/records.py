@@ -5,7 +5,7 @@ from datetime import datetime
 
 from models._validation import identifier
 from models.inventory import InstalledPackage, NativeReview
-from models.lifecycle import PlanOutcome, aggregate
+from models.lifecycle import LifecycleRecord, PlanOutcome, aggregate
 from models.operations import Operation
 from models.package import PackageVersion
 from models.planning import InstallPlan, OperationAction, aware_timestamp, utc_now
@@ -96,6 +96,7 @@ class ExecutionReport:
     audit: tuple[AuditRecord, ...]
     persistence_errors: tuple[str, ...] = ()
     execution_id: str | None = None
+    lifecycle: tuple[LifecycleRecord, ...] = ()
 
     @property
     def outcome(self) -> PlanOutcome:

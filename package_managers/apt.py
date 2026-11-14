@@ -112,4 +112,9 @@ class APT(PackageManager):
             in {BackendAction.INSTALL, BackendAction.UNINSTALL, BackendAction.UPGRADE}
             else PrivilegeRequirement.NONE,
             environment=(("LC_ALL", "C"),),
+            launch_paths=(paths["apt-get"],)
+            if argv[0] != paths["apt-get"]
+            and action
+            in {BackendAction.INSTALL, BackendAction.UNINSTALL, BackendAction.UPGRADE}
+            else (),
         )

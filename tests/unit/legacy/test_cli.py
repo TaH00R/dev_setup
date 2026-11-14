@@ -6,6 +6,8 @@ from contextlib import redirect_stdout
 from unittest import mock
 
 from app.legacy import cli as main
+from models.errors import ErrorCode
+from system.coordination import CoordinationError
 
 
 class LegacyCLITests(unittest.TestCase):
@@ -55,6 +57,26 @@ class LegacyCLITests(unittest.TestCase):
         self.assertEqual(main.show_system_info.call_count, 2)
         self.git.assert_not_called()
         self.python.assert_not_called()
+
+    def test_busy_native_guard_prevents_dispatch_and_does_not_claim_completion(self):
+        with mock.patch("app.legacy.cli.NativeCoordinator") as coordinator:
+            coordinator.return_value.hold.return_value.__enter__.side_effect = (
+                CoordinationError(ErrorCode.BUSY, "Another task holds native access.")
+            )
+            output = self.run_menu(["1", "0"])
+        self.git.assert_not_called()
+        self.assertNotIn("Git setup complete!", output)
+        self.assertIn("Another task holds native access", output)
+
+    def test_install_everything_stops_on_busy_guard_without_retrying_next_tool(self):
+        with mock.patch("app.legacy.cli.NativeCoordinator") as coordinator:
+            coordinator.return_value.hold.return_value.__enter__.side_effect = (
+                CoordinationError(ErrorCode.BUSY, "Native access busy.")
+            )
+            output = self.run_menu(["9", "0"])
+        self.git.assert_not_called()
+        self.python.assert_not_called()
+        self.assertNotIn("Setup Complete!", output)
 
 
 if __name__ == "__main__":

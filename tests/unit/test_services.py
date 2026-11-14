@@ -120,6 +120,9 @@ class ServiceTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
+        (self.root / "brew").write_bytes(
+            b"Synthetic reviewed executable; never executed."
+        )
         self.host = Platform(OperatingSystem.MACOS, Architecture.ARM64)
         self.adapter = Homebrew(self.host, find=lambda name: str(self.root / name))
         template = next(p for p in load_catalog() if p.id == "git")

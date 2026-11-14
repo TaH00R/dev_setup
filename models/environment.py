@@ -7,6 +7,7 @@ from pathlib import Path
 
 from models._validation import identifier, text
 from models.errors import OperationError
+from models.lifecycle import LifecycleRecord
 from models.operations import OperationState
 from models.package import PackageVersion
 from models.planning import aware_timestamp, utc_now
@@ -138,6 +139,7 @@ class RuntimeResult:
     error: OperationError | None = None
     audit: RuntimeAudit | None = None
     persistence_errors: tuple[str, ...] = ()
+    lifecycle: tuple[LifecycleRecord, ...] = ()
 
 
 @dataclass(frozen=True)

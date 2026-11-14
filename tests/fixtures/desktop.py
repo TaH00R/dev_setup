@@ -19,6 +19,7 @@ from system.runner import CommandRunner
 
 class DesktopFixture:
     def __init__(self, root: Path):
+        (root / "brew").write_bytes(b"Synthetic reviewed executable; never executed.")
         self.adapter = Homebrew(
             Platform(OperatingSystem.MACOS, Architecture.ARM64),
             find=lambda name: str(root / name),

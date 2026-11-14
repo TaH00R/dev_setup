@@ -13,7 +13,10 @@ from models.planning import OperationAction
 from models.specs import InstallSpec
 from package_managers.base import AdapterError, PackageManager
 from system.commands import Command
+from system.coordination import NativeCoordinator
 from system.runner import CommandRunner
+
+from .coordination import access
 
 
 class Inspector(Protocol):
@@ -35,8 +38,15 @@ class InventoryService:
         ):
             raise ValueError("inventory inspectors must be unique and share a host")
         self.runner = runner
+        self.coordinator = NativeCoordinator()
 
     def collect(
+        self, packages: tuple[Package, ...] = (), *, cancel: Event | None = None
+    ) -> InventoryReport:
+        with access(self.coordinator, cancel):
+            return self._collect(packages, cancel=cancel)
+
+    def _collect(
         self, packages: tuple[Package, ...] = (), *, cancel: Event | None = None
     ) -> InventoryReport:
         snapshots = []

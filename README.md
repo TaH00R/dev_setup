@@ -95,6 +95,9 @@ history are saved locally in SQLite; process output stays in the current session
 Native operations also save lifecycle checkpoints. Interrupted work opens in
 Queue for explicit inspection and acknowledgement, without automatic retries;
 see [operation recovery](docs/lifecycle.md).
+Native access is serialized across cooperating instances, and changed launch
+files require a fresh review. See [native safety](docs/native-safety.md) for the
+locking policy, retry protection and platform qualification limits.
 Storage failures leave the current session usable and show a warning. Windows can browse the catalog, but native
 package management there is not enabled yet. See the [desktop guide](docs/desktop.md)
 for the workflow and current limits.

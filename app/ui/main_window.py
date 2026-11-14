@@ -12,6 +12,8 @@ from PySide6.QtWidgets import (
 
 from models.catalog import Package
 from models.discovery import LivePackage
+from models.errors import ErrorCode
+from models.operations import OperationState, ProgressEvent
 from models.planning import OperationAction
 from services.desktop import (
     DesktopServices,
@@ -220,6 +222,11 @@ class MainWindow(QMainWindow):
         self.recovery = RecoveryPanel(
             services, self.environment.runtime_service, self.controller
         )
+        self.environment.runtime_service.lifecycle_store = (
+            services.operations.effective_store
+        )
+        self.recovery.configure(services.operations.effective_store, ())
+        self.environment.lifecycle_updated.connect(self.recovery.add_records)
         queue_layout = self.queue_page.layout()
         assert isinstance(queue_layout, QVBoxLayout)
         queue_layout.insertWidget(0, self.recovery)
@@ -437,6 +444,14 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _error(self, message: str) -> None:
+        if self.controller.kind == "execute":
+            state = (
+                OperationState.CANCELLED
+                if self.controller.failure_code == ErrorCode.CANCELLED
+                else OperationState.FAILED
+            )
+            for package_id, placeholder in tuple(self.pending_packages.items()):
+                self._event(ProgressEvent(placeholder, package_id, state, message))
         self.status.setText(message)
 
     def closeEvent(self, event: QCloseEvent) -> None:

@@ -7,6 +7,7 @@ from app.legacy.installers.node_installer import NodeInstaller
 from app.legacy.installers.python_installer import PythonInstaller
 from app.legacy.installers.vscode_installer_package_manager import VSCodeInstaller
 from app.legacy.system_info import show_system_info
+from system.coordination import CoordinationError, NativeCoordinator
 
 INSTALLERS = {
     "1": ("C (GCC, GDB and Make included)", GCCInstaller.setup),
@@ -31,15 +32,28 @@ def show_menu():
     print("0. Exit")
 
 
+def _native_call(task):
+    """Legacy dispatch participates in native exclusion during migration."""
+    try:
+        with NativeCoordinator().hold():
+            task()
+        return True
+    except CoordinationError as error:
+        print(f"\n{error.error.message}")
+        return False
+
+
 def install_all():
     for name, installer in INSTALLERS.values():
         print(f"\nInstalling {name}...")
-        installer()
+        if not _native_call(installer):
+            return False
+    return True
 
 
 def main():
     print("\033[?1049h\033[0;0H")
-    show_system_info()
+    _native_call(show_system_info)
     while True:
         show_menu()
 
@@ -50,19 +64,18 @@ def main():
             break
 
         elif choice == "9":
-            install_all()
-            print("\nSetup Complete!")
+            if install_all():
+                print("\nSetup Complete!")
 
         elif choice == "10":
-            show_system_info()
+            _native_call(show_system_info)
 
         elif choice in INSTALLERS:
             name, installer = INSTALLERS[choice]
 
             print(f"\nInstalling {name}...")
-            installer()
-
-            print(f"\n{name} setup complete!")
+            if _native_call(installer):
+                print(f"\n{name} setup complete!")
 
         else:
             print("\nInvalid choice. Please try again.")

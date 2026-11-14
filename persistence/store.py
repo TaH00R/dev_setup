@@ -18,6 +18,7 @@ from models.lifecycle import LifecycleRecord, LifecycleState
 from models.planning import aware_timestamp
 from services.records import AuditRecord
 from system.commands import Redactor
+from system.coordination import CoordinationError, NativeCoordinator
 
 SCHEMA_VERSION = 3
 _AUDIT_COLUMNS = (
@@ -60,6 +61,7 @@ class StateStore:
     """App-owned database. History loads newest-first and retains 2000 records."""
 
     def __init__(self, path: Path) -> None:
+        self.coordinator = NativeCoordinator()
         path = Path(path)
         if path.is_symlink():
             raise StateError("A symlink cannot be used as the application database.")
@@ -381,6 +383,7 @@ class StateStore:
                 if (
                     previous.state.terminal
                     and previous.state != LifecycleState.INTERRUPTED
+                    and previous.detail != "inspection_required"
                     and previous != record
                 ):
                     raise StateError("Completed execution evidence is immutable.")
@@ -435,6 +438,13 @@ class StateStore:
 
     def interrupt_active(self) -> tuple[LifecycleRecord, ...]:
         """Startup recovery only: preserve evidence, never execute/retry anything."""
+        try:
+            with self.coordinator.hold():
+                return self._interrupt_active()
+        except CoordinationError as error:
+            raise StateError(error.error.message) from None
+
+    def _interrupt_active(self) -> tuple[LifecycleRecord, ...]:
         with self._connection() as database:
             database.execute("BEGIN IMMEDIATE")
             records = self._lifecycle_rows(database)

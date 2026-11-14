@@ -28,6 +28,7 @@ class RuntimeTests(unittest.TestCase):
         self.directory = TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.path = str(Path(self.directory.name) / "uv.exe")
+        Path(self.path).write_bytes(b"Synthetic reviewed executable; never executed.")
         self.adapter = Uv(self.host, find=lambda _: self.path)
         self.request = RuntimeRequest("uv", "python", "3.13.2")
         self.runner = Mock()
@@ -326,6 +327,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_native_mutation_failure_is_structured(self):
         for code in (ErrorCode.COMMAND_FAILED, ErrorCode.CANCELLED, ErrorCode.TIMEOUT):
+            self.service = RuntimeService(self.host, self.runner, (self.adapter,))
             self.runner.run.side_effect = [
                 self.result(),
                 self.result(),

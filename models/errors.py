@@ -7,6 +7,7 @@ from ._validation import enum_value, text, unique_tuple
 
 
 class ErrorCode(str, Enum):
+    BUSY = "busy"
     UNSUPPORTED_PLATFORM = "unsupported_platform"
     UNSUPPORTED_OPERATION = "unsupported_operation"
     MISSING_BACKEND = "missing_backend"

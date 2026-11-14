@@ -12,18 +12,20 @@ from models.errors import ErrorCode
 from models.platform import OperatingSystem
 from models.specs import PrivilegeRequirement
 from system.commands import Approval, Command, Redactor
+from system.identity import bind
 from system.platform import normalize_os
 from system.runner import CommandRunner
 
 
 def fixture_command(code="print('ok')", **kwargs):
-    return Command(
+    command = Command(
         (sys.executable, "-I", "-c", code),
         "Disposable Python fixture",
         normalize_os(platform.system()),
         "test-fixture",
         **kwargs,
     )
+    return bind(command) if command.requires_consent else command
 
 
 class CommandRunnerTests(unittest.TestCase):

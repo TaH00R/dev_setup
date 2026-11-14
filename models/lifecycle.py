@@ -174,6 +174,7 @@ class LifecycleRecord:
             "verification_failed",
             "execution_not_started",
             "outcome_unknown",
+            "inspection_required",
         }:
             raise ValueError("Unsupported lifecycle detail code.")
         for name in (
@@ -219,7 +220,10 @@ class LifecycleRecord:
                 "Lifecycle success requires native verification and a successful exit."
             )
         if self.reconciled_at is not None and (
-            self.state != LifecycleState.INTERRUPTED
+            not (
+                self.state == LifecycleState.INTERRUPTED
+                or self.detail == "inspection_required"
+            )
             or self.inspected_at is None
             or self.verification in {"unknown", "unavailable"}
         ):
@@ -229,7 +233,10 @@ class LifecycleRecord:
 
     @property
     def needs_recovery(self) -> bool:
-        return self.state == LifecycleState.INTERRUPTED and self.reconciled_at is None
+        return (
+            self.state == LifecycleState.INTERRUPTED
+            or self.detail == "inspection_required"
+        ) and self.reconciled_at is None
 
     def advance(
         self,

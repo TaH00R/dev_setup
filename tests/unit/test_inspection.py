@@ -38,6 +38,10 @@ class InspectionTests(unittest.TestCase):
         self.root = Path(directory.name)
 
         def find(name):
+            if not (self.root / name).exists():
+                (self.root / name).write_bytes(
+                    b"Synthetic reviewed executable; never executed."
+                )
             return str(self.root / name)
 
         self.macos = Platform(OperatingSystem.MACOS, Architecture.ARM64)

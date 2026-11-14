@@ -46,6 +46,7 @@ class EnvironmentPages(QObject):
     package_review = Signal(object)
     runtime_audit = Signal(object)
     busy_changed = Signal(bool)
+    lifecycle_updated = Signal(object)
 
     def __init__(
         self, services: DesktopServices, can_start: Callable[[], bool], parent: QWidget
@@ -473,6 +474,7 @@ class EnvironmentPages(QObject):
         elif kind == "config-preview" and isinstance(value, ConfigPlan):
             self._review_config(value)
         elif kind == "runtime-execute" and isinstance(value, RuntimeResult):
+            self.lifecycle_updated.emit(value.lifecycle)
             if value.audit is not None:
                 self.runtime_audit.emit(value.audit)
             self.runtime_status.setText(

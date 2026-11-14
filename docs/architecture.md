@@ -32,6 +32,13 @@ Importing core modules must not
 discover software, start a process,
 load Qt, or import `app`, the launcher, or `app/legacy/`.
 
+The expanded roadmap's milestone 12 adds `system/coordination.py` for native
+access serialization across services/processes and `system/identity.py` for
+reviewed executable/interpreter/helper snapshots. Planning, inventory, execution,
+verification and startup recovery cooperate through the same guard. The runner
+revalidates launch identity against its captured process environment immediately
+before dispatch. See [native safety](native-safety.md) for policy and limits.
+
 `catalog/` contains only reviewed JSON package definitions. Python loading,
 validation, and browsing/search live in `services/catalog/`, sharing `models/`
 and does not invoke package managers or query registries. Catalog matching

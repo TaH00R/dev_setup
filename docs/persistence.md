@@ -58,6 +58,9 @@ Startup marks nonterminal records interrupted with an unknown outcome. Queue
 offers explicit read-only native inspection and acknowledged reconciliation;
 it never retries or undoes native changes. A persistence failure after execution
 is shown separately from the actual native result. See [lifecycle recovery](lifecycle.md).
+Startup takes the shared [native-access guard](native-safety.md) before marking
+records interrupted, so it cannot relabel a cooperating instance's active
+transaction. Busy startup fails safely without changing those records.
 
 ## Schema upgrades and recovery
 

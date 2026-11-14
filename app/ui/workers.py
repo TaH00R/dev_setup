@@ -6,6 +6,7 @@ from threading import Event, Lock
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
+from models.errors import ErrorCode
 from models.operations import ProgressEvent
 from package_managers.base import AdapterError
 from services.desktop import DesktopServices, DesktopSnapshot
@@ -34,6 +35,7 @@ class Job(QThread):
         super().__init__(parent)
         self.task = task
         self.cancelled = Event()
+        self.failure_code: ErrorCode | None = None
         self._output_lock = Lock()
         self._outputs: dict[tuple[str, str], OutputSnapshot] = {}
         self._output_scheduled = False
@@ -67,8 +69,10 @@ class Job(QThread):
                 self.task(self.cancelled, self.progress.emit, self.publish_output)
             )
         except AdapterError as error:
+            self.failure_code = error.error.code
             self.error.emit(error.error.message)
         except Exception:
+            self.failure_code = ErrorCode.UNKNOWN
             self.error.emit(
                 "The operation could not be completed. No rollback was attempted; partial changes may remain."
             )
@@ -95,6 +99,7 @@ class Controller(QObject):
         self.kind = ""
         self.value: object = None
         self.failure = ""
+        self.failure_code: ErrorCode | None = None
         self.reviewing = False
         self.external_busy: Callable[[], bool] = lambda: False
 
@@ -140,6 +145,7 @@ class Controller(QObject):
     @Slot()
     def _finished(self) -> None:
         kind, value, failure = self.kind, self.value, self.failure
+        self.failure_code = self.job.failure_code if self.job else None
         self.job = None
         self.value = None
         self.reviewing = (

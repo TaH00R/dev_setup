@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import datetime
-from threading import Event
+from threading import Event, RLock
 from typing import TYPE_CHECKING, Protocol
 from uuid import uuid4
 
@@ -22,7 +22,9 @@ from models.operations import Operation
 from models.planning import utc_now
 from models.platform import Platform
 from package_managers.base import AdapterError
+from system.coordination import NativeCoordinator
 
+from .coordination import access
 from .inventory import Inspector
 from .records import PlanConsent, ReviewedPlan
 
@@ -47,6 +49,35 @@ class UnavailableLifecycleStore:
         raise ValueError(
             "Lifecycle storage is unavailable; no native operation was started."
         )
+
+
+class MemoryLifecycleStore:
+    """Session-only retry protection when the caller deliberately omits persistence."""
+
+    def __init__(self) -> None:
+        self._records: dict[str, LifecycleRecord] = {}
+        self._lock = RLock()
+
+    def save_lifecycle(self, record: LifecycleRecord) -> None:
+        with self._lock:
+            self._records[record.operation_id] = record
+
+    def load_lifecycle(self) -> tuple[LifecycleRecord, ...]:
+        with self._lock:
+            return tuple(self._records.values())
+
+    def clear_resolved(self) -> None:
+        with self._lock:
+            protected = {
+                record.execution_id
+                for record in self._records.values()
+                if record.needs_recovery or not record.state.terminal
+            }
+            self._records = {
+                key: record
+                for key, record in self._records.items()
+                if record.execution_id in protected
+            }
 
 
 class WatchedCancellation(Event):
@@ -198,6 +229,13 @@ class LifecycleRun:
             detail = "native_changes_possible"
         elif result:
             detail = "execution_not_started"
+        if (
+            result
+            and result.error
+            and result.error.code in {ErrorCode.TIMEOUT, ErrorCode.CANCELLED}
+            and record.mutation_started
+        ):
+            detail = "inspection_required"
         saved = self.transition(
             operation.id,
             LifecycleState(operation.state.value),
@@ -219,7 +257,22 @@ def package_run(
     store: LifecycleStore | None,
 ) -> LifecycleRun:
     execution_id = uuid4().hex
-    identity = fingerprint(reviewed)
+    identity = fingerprint(
+        (
+            reviewed,
+            tuple(
+                (
+                    item.command.argv,
+                    item.command.environment,
+                    item.command.launch_paths,
+                    item.command.launch_files,
+                )
+                if item.command
+                else None
+                for item in reviewed.prepared
+            ),
+        )
+    )
     approved = (
         consent.approved_at
         if consent and consent.confirmed and consent.reviewed == reviewed
@@ -270,7 +323,19 @@ def runtime_run(
         operation_id,
         uuid4().hex,
         plan.id,
-        fingerprint(plan),
+        fingerprint(
+            (
+                plan,
+                (
+                    plan.command.argv,
+                    plan.command.environment,
+                    plan.command.launch_paths,
+                    plan.command.launch_files,
+                )
+                if plan.command
+                else None,
+            )
+        ),
         "runtime",
         "runtime-" + plan.request.runtime,
         plan.request.runtime,
@@ -303,8 +368,17 @@ class RecoveryService:
             inspectors,
             runtimes,
         )
+        self.coordinator = NativeCoordinator()
 
     def inspect(
+        self, record: LifecycleRecord, cancel: Event | None = None
+    ) -> LifecycleRecord:
+        if cancel is not None and cancel.is_set():
+            return self._inspect(record, cancel)
+        with access(self.coordinator, cancel):
+            return self._inspect(record, cancel)
+
+    def _inspect(
         self, record: LifecycleRecord, cancel: Event | None = None
     ) -> LifecycleRecord:
         self._current(record)

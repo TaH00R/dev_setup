@@ -11,6 +11,8 @@ from models.planning import CommandPreview, aware_timestamp, utc_now
 from models.platform import OperatingSystem
 from models.specs import PrivilegeRequirement
 
+from .identity import LaunchFile
+
 
 @dataclass(frozen=True)
 class Redactor:
@@ -51,6 +53,8 @@ class Command:
     privilege: PrivilegeRequirement = PrivilegeRequirement.NONE
     timeout_seconds: float = 60.0
     environment: tuple[tuple[str, str], ...] = field(default=(), repr=False)
+    launch_paths: tuple[str, ...] = field(default=(), repr=False)
+    launch_files: tuple[LaunchFile, ...] = field(default=(), repr=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.argv, tuple) or not self.argv:
@@ -79,6 +83,14 @@ class Command:
         if not isinstance(self.environment, tuple):
             raise ValueError("environment overrides require an immutable tuple")
         keys = []
+        if not isinstance(self.launch_paths, tuple) or any(
+            not isinstance(path, str) or not path for path in self.launch_paths
+        ):
+            raise ValueError("Launch assets must be adapter-owned paths.")
+        if not isinstance(self.launch_files, tuple) or any(
+            not isinstance(item, LaunchFile) for item in self.launch_files
+        ):
+            raise ValueError("Launch identity must contain reviewed file snapshots.")
         for entry in self.environment:
             if not isinstance(entry, tuple) or len(entry) != 2:
                 raise ValueError("environment overrides require key/value pairs")

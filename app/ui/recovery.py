@@ -11,10 +11,9 @@ from PySide6.QtWidgets import (
 )
 
 from models.lifecycle import LifecycleRecord, aggregate
-from persistence.store import StateStore
 from runtimes.service import RuntimeService
 from services.desktop import DesktopServices
-from services.lifecycle import RecoveryService
+from services.lifecycle import LifecycleStore, RecoveryService
 
 from .components import fill_table, label, table
 from .workers import Controller
@@ -29,13 +28,18 @@ class RecoveryPanel(QWidget):
     ) -> None:
         super().__init__()
         self.services, self.runtimes, self.controller = services, runtimes, controller
-        self.store: StateStore | None = None
+        self.store: LifecycleStore | None = None
         self.records: tuple[LifecycleRecord, ...] = ()
         self.all_records: tuple[LifecycleRecord, ...] = ()
         self.busy = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(label("Interrupted work requires inspection", "sectionTitle"))
+        layout.addWidget(
+            label(
+                "Unfinished or uncertain native work requires inspection",
+                "sectionTitle",
+            )
+        )
         self.note = label(
             "Outcome unknown. Native changes may already have occurred. Inspect current inventory before a fresh review; no operation will be rerun automatically."
         )
@@ -71,7 +75,7 @@ class RecoveryPanel(QWidget):
         self.hide()
 
     def configure(
-        self, store: StateStore, records: tuple[LifecycleRecord, ...]
+        self, store: LifecycleStore, records: tuple[LifecycleRecord, ...]
     ) -> None:
         self.store = store
         self._ready(records)
@@ -79,6 +83,17 @@ class RecoveryPanel(QWidget):
     def set_busy(self, busy: bool) -> None:
         self.busy = busy
         self._buttons()
+
+    def add_records(self, value: object) -> None:
+        if (
+            not isinstance(value, tuple)
+            or not value
+            or any(not isinstance(record, LifecycleRecord) for record in value)
+        ):
+            return
+        merged = {record.operation_id: record for record in self.all_records}
+        merged.update((record.operation_id, record) for record in value)
+        self._ready(tuple(merged.values()))
 
     def clear_resolved(self) -> None:
         protected = {
@@ -108,7 +123,7 @@ class RecoveryPanel(QWidget):
             "unavailable": "Native inventory could not be inspected on this host/backend.",
         }
         self.details.setText(
-            f"Native ID: {record.native_id} | Source: {record.source_id}\n{observations.get(record.verification, record.verification)} Original execution remains interrupted; no rollback is implied."
+            f"Native ID: {record.native_id} | Source: {record.source_id}\n{observations.get(record.verification, record.verification)} Original execution outcome: {record.state.value}; no rollback is implied."
             if record
             else "Select interrupted work to inspect its source and current state."
         )
@@ -130,7 +145,11 @@ class RecoveryPanel(QWidget):
             return
         self.all_records = value
         self.records = tuple(
-            record for record in value if record.state.value == "interrupted"
+            record
+            for record in value
+            if record.needs_recovery
+            or record.reconciled_at is not None
+            or record.state.value == "interrupted"
         )
         fill_table(
             self.table,
@@ -139,9 +158,9 @@ class RecoveryPanel(QWidget):
                     f"{record.package_id} / {record.action}",
                     record.backend,
                     record.phase.value,
-                    "interrupted / acknowledged"
+                    record.state.value + " / acknowledged"
                     if record.reconciled_at
-                    else "interrupted / unknown",
+                    else record.state.value + " / inspection required",
                     record.verification,
                     aggregate(
                         tuple(

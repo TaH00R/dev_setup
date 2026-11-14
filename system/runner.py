@@ -16,6 +16,8 @@ from models.errors import ErrorCode, OperationError
 from models.planning import utc_now
 
 from .commands import Approval, Command, CommandResult, OutputSnapshot, Redactor
+from .coordination import CoordinationError, NativeCoordinator
+from .identity import IdentityError, revalidate
 from .platform import normalize_os
 
 OutputObserver = Callable[[OutputSnapshot], None]
@@ -25,7 +27,11 @@ class CommandRunner:
     """Call from a worker, never the GUI thread. No log files or passwords."""
 
     def __init__(
-        self, *, capture_bytes: int = 65536, redactor: Redactor | None = None
+        self,
+        *,
+        capture_bytes: int = 65536,
+        redactor: Redactor | None = None,
+        coordinator: NativeCoordinator | None = None,
     ) -> None:
         if type(capture_bytes) is not int or not 1 <= capture_bytes <= 65536:
             raise ValueError(
@@ -33,6 +39,7 @@ class CommandRunner:
             )
         self.capture_bytes = capture_bytes
         self.redactor = redactor or Redactor()
+        self.coordinator = coordinator or NativeCoordinator()
 
     @staticmethod
     def _stop(process: subprocess.Popen[bytes]) -> bool:
@@ -58,6 +65,29 @@ class CommandRunner:
                 return process.poll() is not None
 
     def run(
+        self,
+        command: Command,
+        *,
+        approval: Approval | None = None,
+        cancel: threading.Event | None = None,
+        observe: OutputObserver | None = None,
+    ) -> CommandResult:
+        try:
+            with self.coordinator.hold(cancel):
+                return self._run(
+                    command, approval=approval, cancel=cancel, observe=observe
+                )
+        except CoordinationError as error:
+            now = utc_now()
+            sanitizer = Redactor(
+                self.redactor.secrets
+                + tuple(value for key, value in command.environment if value)
+            )
+            return CommandResult(
+                command.preview(sanitizer), now, now, error=error.error
+            )
+
+    def _run(
         self,
         command: Command,
         *,
@@ -111,6 +141,11 @@ class CommandRunner:
             )
         environment = os.environ.copy()
         environment.update(command.environment)
+        if command.requires_consent or command.launch_files:
+            try:
+                revalidate(command, environment=environment)
+            except IdentityError as identity_error:
+                return failure(ErrorCode.VERIFICATION_FAILED, str(identity_error))
         try:
             process = subprocess.Popen(
                 list(command.argv),

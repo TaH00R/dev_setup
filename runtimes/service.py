@@ -17,8 +17,11 @@ from models.planning import utc_now
 from models.platform import Platform
 from package_managers.base import AdapterError
 from runtimes.adapters import RuntimeManager, default_adapters
-from services.lifecycle import LifecycleStore, runtime_run
+from services.coordination import access
+from services.lifecycle import LifecycleStore, MemoryLifecycleStore, runtime_run
 from system.commands import Approval, CommandResult
+from system.coordination import NativeCoordinator
+from system.identity import IdentityError, bind
 from system.runner import CommandRunner, OutputObserver
 
 
@@ -30,7 +33,9 @@ class RuntimeService:
         adapters: tuple[RuntimeManager, ...] | None = None,
     ) -> None:
         self.host, self.runner = host, runner
+        self.coordinator = NativeCoordinator()
         self.lifecycle_store: LifecycleStore | None = None
+        self.session_store = MemoryLifecycleStore()
         self.adapters = {
             a.id: a
             for a in (adapters if adapters is not None else default_adapters(host))
@@ -40,6 +45,14 @@ class RuntimeService:
 
     def managers(self) -> tuple[RuntimeManager, ...]:
         return tuple(self.adapters.values())
+
+    @property
+    def effective_store(self) -> LifecycleStore:
+        return (
+            self.lifecycle_store
+            if self.lifecycle_store is not None
+            else self.session_store
+        )
 
     def _adapter(self, request: RuntimeRequest) -> RuntimeManager:
         adapter = self.adapters.get(request.manager)
@@ -65,8 +78,14 @@ class RuntimeService:
     def preview(
         self, request: RuntimeRequest, cancel: Event | None = None
     ) -> RuntimePlan:
+        with access(self.coordinator, cancel):
+            return self._preview(request, cancel)
+
+    def _preview(
+        self, request: RuntimeRequest, cancel: Event | None = None
+    ) -> RuntimePlan:
         adapter = self._adapter(request)
-        command = adapter.install(request)
+        command = bind(adapter.install(request))
         installed = self._installed(adapter, request, cancel)
         present = request.version in installed
         return RuntimePlan(
@@ -78,6 +97,7 @@ class RuntimeService:
                 f"Source: existing {adapter.id} native manager and its runtime distribution.",
                 "Installs into manager-owned storage; no PATH/shell startup edits. Rustup may set its first installed toolchain as the native default when no default exists.",
                 "Review project configuration separately. Cancellation can leave downloaded runtime files; rollback is not provided.",
+                "Resolved launch file identities are rechecked before dispatch; changes require a fresh review.",
             ),
             "Requested version is already installed." if present else None,
         )
@@ -89,6 +109,17 @@ class RuntimeService:
         cancel: Event | None = None,
         observe: OutputObserver | None = None,
     ) -> RuntimeResult:
+        with access(self.coordinator, cancel):
+            return self._execute(plan, consent, cancel=cancel, observe=observe)
+
+    def _execute(
+        self,
+        plan: RuntimePlan,
+        consent: RuntimeConsent | None = None,
+        *,
+        cancel: Event | None = None,
+        observe: OutputObserver | None = None,
+    ) -> RuntimeResult:
         if consent is None or consent.plan != plan or not consent.confirmed:
             return RuntimeResult(
                 OperationState.CANCELLED, "Runtime installation was not approved."
@@ -96,7 +127,7 @@ class RuntimeService:
         result: CommandResult | None = None
         operation_id = str(uuid4())
         lifecycle = runtime_run(
-            plan, operation_id, self.host, consent.approved_at, self.lifecycle_store
+            plan, operation_id, self.host, consent.approved_at, self.effective_store
         )
         cancel = lifecycle.cancellation(operation_id, cancel)
         lifecycle.transition(operation_id, LifecycleState.RESOLVING)
@@ -124,18 +155,28 @@ class RuntimeService:
                 else "failed"
                 if error and error.code == ErrorCode.VERIFICATION_FAILED
                 else "unknown",
-                detail="native_changes_possible"
+                detail="inspection_required"
+                if error
+                and error.code in {ErrorCode.TIMEOUT, ErrorCode.CANCELLED}
+                and lifecycle.records[operation_id].mutation_started
+                else "native_changes_possible"
                 if lifecycle.records[operation_id].mutation_started
                 and state != OperationState.SUCCEEDED
                 else "none",
             )
             return RuntimeResult(
-                state, message, result, error, audit, tuple(lifecycle.errors)
+                state,
+                message,
+                result,
+                error,
+                audit,
+                tuple(lifecycle.errors),
+                tuple(lifecycle.records.values()),
             )
 
         try:
             adapter = self._adapter(plan.request)
-            command = adapter.install(plan.request)
+            command = bind(adapter.install(plan.request))
             if plan.command is not None and plan.command != command:
                 raise AdapterError(
                     ErrorCode.VERIFICATION_FAILED,
@@ -190,6 +231,9 @@ class RuntimeService:
                 OperationState.SUCCEEDED,
                 "Selected runtime version was installed and verified.",
             )
+        except IdentityError as exc:
+            error = OperationError(ErrorCode.VERIFICATION_FAILED, str(exc))
+            return finish(OperationState.FAILED, error.message, error)
         except AdapterError as exc:
             state = (
                 OperationState.CANCELLED

@@ -74,6 +74,8 @@ class SessionPresenter(QObject):
         self.view._clear_session()
 
     def _clear_session(self) -> None:
+        if self.view.state_path is None:
+            self.view.services.operations.session_store.clear_resolved()
         self.view.controller.history.clear()
         self.view.operation_rows.clear()
         self.view.pending_packages.clear()

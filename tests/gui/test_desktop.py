@@ -12,7 +12,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
     from PySide6.QtCore import QEventLoop, Qt, QTimer
     from PySide6.QtTest import QTest
-    from PySide6.QtWidgets import QApplication, QDialog
+    from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 except ModuleNotFoundError as error:
     if error.name is None or not error.name.startswith("PySide6"):
@@ -33,6 +33,7 @@ from services.catalog.service import CatalogService
 from services.planning import Planner
 from services.records import PackageRequest
 from system.commands import OutputSnapshot
+from system.coordination import NativeCoordinator
 from tests.fixtures.desktop import DesktopFixture
 
 
@@ -40,6 +41,72 @@ from tests.fixtures.desktop import DesktopFixture
     QT_AVAILABLE, "Install requirements-gui.txt to run desktop acceptance tests."
 )
 class DesktopTests(unittest.TestCase):
+    def test_timed_out_session_operation_offers_inspection_before_retry(self):
+        self.fixture.failure = ErrorCode.TIMEOUT
+        self.choose_git()
+        self.review_automatically()
+        self.window.review_button.click()
+        self.wait_for(
+            lambda: (
+                not self.window.controller.busy
+                and len(self.window.controller.history) == 1
+            )
+        )
+        panel = self.window.recovery
+        self.assertTrue(panel.isVisible())
+        self.assertTrue(panel.records[0].needs_recovery)
+        self.assertEqual(panel.records[0].state.value, "failed")
+        self.assertFalse(panel.acknowledge.isEnabled())
+        panel.inspect_button.click()
+        self.wait_for(lambda: not self.window.controller.busy)
+        self.assertEqual(panel.records[0].verification, "matches_before")
+        with mock.patch(
+            "app.ui.recovery.QMessageBox.question",
+            return_value=QMessageBox.StandardButton.Yes,
+        ):
+            panel.acknowledge.click()
+        self.wait_for(lambda: not self.window.controller.busy)
+        self.assertFalse(panel.records[0].needs_recovery)
+        self.fixture.failure = None
+        self.review_automatically()
+        self.window.controller.preview(PackageRequest("git"))
+        self.wait_for(
+            lambda: (
+                not self.window.controller.busy
+                and len(self.window.controller.history) == 2
+            )
+        )
+        self.assertEqual(self.window.controller.history[-1].state, "succeeded")
+
+    def test_cancelling_native_lock_wait_finishes_queue_placeholders(self):
+        root = Path(self.directory.name) / "native-locks"
+        self.fixture.services.operations.coordinator = NativeCoordinator(
+            root, timeout=5
+        )
+        plan = self.fixture.services.planner.preview((PackageRequest("git"),))
+        acquired, release = threading.Event(), threading.Event()
+
+        def hold():
+            with NativeCoordinator(root).hold():
+                acquired.set()
+                release.wait(5)
+
+        worker = threading.Thread(target=hold)
+        worker.start()
+        try:
+            self.assertTrue(acquired.wait(5))
+            self.review_automatically()
+            self.window._review(plan)
+            self.assertEqual(self.window.queue_table.rowCount(), 1)
+            self.window._cancel()
+            self.wait_for(lambda: not self.window.controller.busy)
+            self.assertEqual(self.window.queue_table.item(0, 1).text(), "cancelled")
+            self.assertFalse(self.window.pending_packages)
+            self.assertFalse(self.fixture.mutations)
+        finally:
+            release.set()
+            worker.join(5)
+
     def test_queue_and_log_limits_keep_selection_consistent_after_eviction(self):
         for index in range(110):
             operation_id = f"operation-{index}"

@@ -44,7 +44,7 @@ execution ID. They are not inferred from the last progress message.
 `services/lifecycle.py` supplies worker-side checkpoint coordination and a small
 store protocol. `OperationService.lifecycle_store` and
 `RuntimeService.lifecycle_store` use the desktop's loaded `StateStore`; callers
-without a store retain session-only behavior. Startup must finish before the
+without a store retain a session-only in-memory journal and retry protection. Startup must finish before the
 desktop accepts a package or runtime mutation review.
 If persistent startup fails, browsing and session results remain available but
 native dispatch stays blocked; it cannot silently switch to unjournaled mutations.
@@ -81,7 +81,9 @@ cancellation leaves the prior observation intact.
 After a successful inspection, **Acknowledge inspected outcome** requires an
 explicit confirmation, defaulting to No. It acknowledges that observation and
 closes recovery, without claiming which process changed the system or that the
-old command succeeded. The execution outcome stays interrupted. A matching
+old command succeeded. The execution outcome stays interrupted. Timed-out or
+cancelled mutations that may have started also require inspection; their original
+failed/cancelled outcome is preserved. A matching
 unfinished tool blocks another mutation until it has been inspected and
 acknowledged; any subsequent mutation still needs a fresh reviewed plan.
 
@@ -103,8 +105,8 @@ Recovery inspects current inventory, not package-manager transaction attribution
 service health or rollback. Project-file changes retain their existing separate
 review flow and do not enter this native lifecycle journal. Metadata is retained
 until explicit history clearing; lifecycle compaction remains persistence work.
-This milestone assumes a single application instance: startup treats remaining
-nonterminal rows as abandoned. Do not run simultaneous instances against this
-database yet. Cross-process mutation/instance coordination and executable
-identity protection are milestone 12; broader database recovery is milestone 15.
+Milestone 12 adds [native access coordination and launch identity](native-safety.md).
+Startup now waits for the shared native guard before treating nonterminal rows as
+abandoned, so live cooperating instances are protected. Broader database recovery
+is milestone 15.
 No native clean-machine, elevation or other-OS qualification is claimed here.

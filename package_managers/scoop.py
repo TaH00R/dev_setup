@@ -136,7 +136,13 @@ class Scoop(PackageManager):
             in {BackendAction.INSTALL, BackendAction.UNINSTALL, BackendAction.UPGRADE}
             else PrivilegeRequirement.NONE
         )
-        command = self.request(argv, action, spec, privilege=privilege)
+        command = self.request(
+            argv,
+            action,
+            spec,
+            privilege=privilege,
+            launch_paths=(bridge, paths["scoop"]),
+        )
         if action == BackendAction.UPGRADE:
             command = replace(
                 command,
