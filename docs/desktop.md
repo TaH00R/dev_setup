@@ -58,6 +58,31 @@ the service's source, version, verification and partial-support limitations; see
 
 ## Workers, cancellation, and privacy
 
+The window composes independent widgets in `app/ui/pages/`. Page constructors
+render catalog metadata and controls; they do not start workers or native
+operations. `navigation.py` owns the sidebar, page stack and task footer;
+`components.py` supplies plain-text labels, tables and scroll containers, and
+`theme.py` owns styling. Search/selection, operation review/queue output, and
+preferences/history are coordinated by `explore_presenter.py`,
+`operation_presenter.py` and `session_presenter.py`. These Qt boundary objects
+share window state and call the existing controllers/services. Window widget
+aliases and handler bindings preserve current integrations during migration.
+
+`environments.py` coordinates the Presets and Runtimes widgets. Its background
+controller lives in `environment_worker.py`, and the consent dialog lives in
+`change_review.py` (with compatibility imports in `environments.py`). The
+Qt-independent `application/environments.py` workflow handles cancellable
+manifest import/export, platform preview and approved project writes using the
+existing planner and configuration service. It does not introduce a second
+operation engine, new command construction or dependencies.
+
+`tests/gui/test_pages.py` exercises page construction without the window/native
+work, keyboard navigation and search focus, accessible control names, long
+plain-text output, consent defaults and scroll access after resizing. A fresh
+offscreen Qt process checks rendering at `QT_SCALE_FACTOR=2`. These are automated
+interaction checks, not a claim of native screen-reader or multi-monitor
+qualification on Windows, macOS and Linux.
+
 `services/desktop.py` aggregates native inventory and candidate checks without Qt.
 `app/bootstrap.py` selects existing reviewed inspectors. Widgets render those
 records and dispatch user intent through `app/ui/workers.py`. One QThread job per

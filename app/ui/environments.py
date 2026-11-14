@@ -8,28 +8,14 @@ from threading import Event
 
 from PySide6.QtCore import QObject, Qt, Signal, Slot
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QCheckBox,
-    QComboBox,
     QDialog,
-    QDialogButtonBox,
     QFileDialog,
-    QFormLayout,
-    QGroupBox,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QListWidget,
     QListWidgetItem,
-    QPlainTextEdit,
-    QPushButton,
-    QScrollArea,
-    QTableWidget,
     QTableWidgetItem,
-    QVBoxLayout,
     QWidget,
 )
 
+from application.environments import EnvironmentWorkflow
 from models.environment import (
     ConfigPlan,
     Manifest,
@@ -39,159 +25,21 @@ from models.environment import (
     RuntimeRequest,
     RuntimeResult,
 )
-from models.errors import ErrorCode
 from models.package import PackageVersion
-from package_managers.base import AdapterError
 from runtimes.service import RuntimeService
 from services.desktop import DesktopServices
 from services.environments import (
     ManifestPreview,
     ProjectConfigService,
-    load_manifest,
-    preview_manifest,
-    save_manifest,
     starter_presets,
 )
 from system.commands import OutputSnapshot
 
-from .workers import Job, Task
-
-
-def text_label(text: str) -> QLabel:
-    widget = QLabel(text)
-    widget.setTextFormat(Qt.TextFormat.PlainText)
-    widget.setWordWrap(True)
-    return widget
-
-
-class ChangeReview(QDialog):
-    """A review is accepted only by an explicit enabled action, never by default."""
-
-    def __init__(
-        self,
-        title: str,
-        details: str,
-        *,
-        required: bool = True,
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle(title)
-        self.resize(760, 600)
-        layout = QVBoxLayout(self)
-        layout.addWidget(text_label(title))
-        self.details = QPlainTextEdit()
-        self.details.setReadOnly(True)
-        self.details.setPlainText(details)
-        layout.addWidget(self.details)
-        self.approve = QCheckBox("I approve the exact changes shown above.")
-        self.approve.setVisible(required)
-        layout.addWidget(self.approve)
-        layout.addWidget(
-            text_label(
-                "Cancellation is best effort. Native changes are not rolled back. Project writes may finish before cancellation."
-            )
-        )
-        self.buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        self.run_button = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
-        self.run_button.setText(
-            "Approve and apply" if required else "Confirm reviewed result"
-        )
-        self.run_button.setAutoDefault(False)
-        self.run_button.setDefault(False)
-        self.buttons.button(QDialogButtonBox.StandardButton.Cancel).setDefault(True)
-        self.run_button.setEnabled(not required)
-        self.approve.toggled.connect(
-            lambda checked: self.run_button.setEnabled(checked or not required)
-        )
-        self.buttons.accepted.connect(self.accept)
-        self.buttons.rejected.connect(self.reject)
-        layout.addWidget(self.buttons)
-
-
-class EnvironmentController(QObject):
-    busy_changed = Signal(bool)
-    completed = Signal(str, object)
-    error = Signal(str)
-    output = Signal(str, object)
-
-    def __init__(self, can_start: Callable[[], bool], parent: QObject) -> None:
-        super().__init__(parent)
-        self.can_start = can_start
-        self.job: Job | None = None
-        self.reviewing = False
-        self.kind = ""
-        self.value: object = None
-        self.failure = ""
-
-    @property
-    def busy(self) -> bool:
-        return self.job is not None or self.reviewing
-
-    def start(self, kind: str, task: Task, *, from_review: bool = False) -> bool:
-        if (
-            self.job is not None
-            or (self.reviewing and not from_review)
-            or not self.can_start()
-        ):
-            return False
-        self.reviewing = False
-        self.kind, self.value, self.failure = kind, None, ""
-        job = Job(task, self)
-        self.job = job
-        job.result.connect(self._result)
-        job.error.connect(self._error)
-        job.output_ready.connect(self._logs)
-        job.finished.connect(self._finished)
-        job.finished.connect(job.deleteLater)
-        self.busy_changed.emit(True)
-        job.start()
-        return True
-
-    @Slot(object)
-    def _result(self, value: object) -> None:
-        self.value = value
-
-    @Slot(str)
-    def _error(self, message: str) -> None:
-        self.failure = message
-
-    @Slot()
-    def _logs(self) -> None:
-        if self.job:
-            for operation_id, snapshot in self.job.take_output():
-                self.output.emit(operation_id, snapshot)
-
-    @Slot()
-    def _finished(self) -> None:
-        kind, value, failure = self.kind, self.value, self.failure
-        if (
-            self.job
-            and self.job.cancelled.is_set()
-            and kind in {"runtime-preview", "config-preview"}
-        ):
-            value, failure = (
-                None,
-                "Environment review preparation was cancelled. No changes were started.",
-            )
-        self.job, self.value = None, None
-        self.reviewing = not failure and kind in {"runtime-preview", "config-preview"}
-        self.busy_changed.emit(self.busy)
-        if failure:
-            self.error.emit(failure)
-        else:
-            self.completed.emit(kind, value)
-
-    def release_review(self) -> None:
-        if self.reviewing:
-            self.reviewing = False
-            self.busy_changed.emit(self.busy)
-
-    def cancel(self) -> None:
-        if self.job:
-            self.job.cancelled.set()
+from .change_review import ChangeReview as ChangeReview
+from .components import scroll_page
+from .environment_worker import EnvironmentController as EnvironmentController
+from .pages.presets import PresetsPage
+from .pages.runtimes import RuntimesPage
 
 
 class EnvironmentPages(QObject):
@@ -206,6 +54,7 @@ class EnvironmentPages(QObject):
         self.services = services
         self.runtime_service = RuntimeService(services.host, services.inventory.runner)
         self.config_service = ProjectConfigService()
+        self.workflow = EnvironmentWorkflow(services.planner, self.config_service)
         self.controller = EnvironmentController(can_start, self)
         self.controller.busy_changed.connect(self._busy)
         self.controller.completed.connect(self._done)
@@ -215,169 +64,55 @@ class EnvironmentPages(QObject):
         self.base_manifest = starter_presets()[0]
         self.preview: ManifestPreview | None = None
         self.streams: dict[str, str] = {}
-        self.presets_page = self._presets()
-        self.runtimes_page = self._runtimes()
-        self._load_manifest(self.base_manifest)
-
-    def _presets(self) -> QWidget:
-        page = QWidget()
-        page.setObjectName("page")
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(
-            text_label(
-                "Choose a starter bundle or build a collection. Versions and package IDs travel with the manifest; unsupported tools are shown before any execution."
-            )
-        )
-        self.presets = QComboBox()
-        for manifest in starter_presets():
-            self.presets.addItem("Starter: " + manifest.name, manifest)
+        self.presets_view = PresetsPage()
+        self.presets = self.presets_view.presets
+        self.collection_name = self.presets_view.collection_name
+        self.collection_description = self.presets_view.collection_description
+        self.packages = self.presets_view.packages
+        self.runtime_choices = self.presets_view.runtime_choices
+        self.save_collection = self.presets_view.save_collection
+        self.import_button = self.presets_view.import_button
+        self.export_button = self.presets_view.export_button
+        self.preview_button = self.presets_view.preview_button
+        self.manifest_details = self.presets_view.manifest_details
+        self.package_button = self.presets_view.package_button
+        self.manifest_status = self.presets_view.manifest_status
         self.presets.currentIndexChanged.connect(self._preset_changed)
-        layout.addWidget(self.presets)
-        form = QFormLayout()
-        self.collection_name = QLineEdit()
-        self.collection_description = QLineEdit()
-        form.addRow("Collection name", self.collection_name)
-        form.addRow("Description", self.collection_description)
-        layout.addLayout(form)
-        self.packages = QTableWidget(0, 2)
-        self.packages.setHorizontalHeaderLabels(
-            ("Tool / package ID", "Exact package version (optional)")
-        )
-        self.packages.horizontalHeader().setStretchLastSection(True)
-        self.packages.setColumnWidth(0, 430)
-        self.packages.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
-        layout.addWidget(self.packages, 2)
-        self.runtime_choices = QListWidget()
-        self.runtime_choices.setMaximumHeight(100)
-        layout.addWidget(
-            text_label("Runtime choices (add exact versions on the Runtimes page):")
-        )
-        layout.addWidget(self.runtime_choices)
-        actions = QHBoxLayout()
-        self.save_collection = QPushButton("Save as session collection")
         self.save_collection.clicked.connect(self._save_collection)
-        self.import_button = QPushButton("Import manifest")
         self.import_button.clicked.connect(self._import_dialog)
-        self.export_button = QPushButton("Export manifest")
         self.export_button.clicked.connect(self._export_dialog)
-        self.preview_button = QPushButton("Preview for this platform")
         self.preview_button.clicked.connect(self._preview_manifest)
-        for button in (
-            self.save_collection,
-            self.import_button,
-            self.export_button,
-            self.preview_button,
-        ):
-            actions.addWidget(button)
-        layout.addLayout(actions)
-        self.manifest_details = QPlainTextEdit()
-        self.manifest_details.setReadOnly(True)
-        self.manifest_details.setPlaceholderText(
-            "Preview lists selected sources, native commands, and unsupported items. Runtime/configuration choices are reviewed separately."
-        )
-        layout.addWidget(self.manifest_details, 1)
-        self.package_button = QPushButton("Review package operations")
-        self.package_button.setEnabled(False)
         self.package_button.clicked.connect(self._review_packages)
-        layout.addWidget(self.package_button)
-        self.manifest_status = text_label(
-            "Collections are in memory until exported. Export chooses a new file and does not overwrite existing manifests."
-        )
-        layout.addWidget(self.manifest_status)
         self.packages.itemChanged.connect(self._manifest_changed)
         self.runtime_choices.itemChanged.connect(self._manifest_changed)
         self.collection_name.textChanged.connect(self._manifest_changed)
         self.collection_description.textChanged.connect(self._manifest_changed)
-        return page
-
-    def _runtimes(self) -> QWidget:
-        page = QWidget()
-        page.setObjectName("page")
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        runtime_group = QGroupBox("Runtime versions")
-        form = QFormLayout(runtime_group)
-        self.manager = QComboBox()
-        for manager in self.runtime_service.managers():
-            self.manager.addItem(manager.id, manager)
-        self.runtime = QComboBox()
+        self.presets_page = self.presets_view
+        self.runtimes_view = RuntimesPage(self.runtime_service.managers())
+        self.manager = self.runtimes_view.manager
+        self.runtime = self.runtimes_view.runtime
+        self.runtime_version = self.runtimes_view.runtime_version
+        self.runtime_preview = self.runtimes_view.runtime_preview
+        self.add_runtime = self.runtimes_view.add_runtime
+        self.project = self.runtimes_view.project
+        self.project_browse = self.runtimes_view.project_browse
+        self.config_kind = self.runtimes_view.config_kind
+        self.config_version = self.runtimes_view.config_version
+        self.config_preview = self.runtimes_view.config_preview
+        self.env_name = self.runtimes_view.env_name
+        self.env_path = self.runtimes_view.env_path
+        self.env_preview = self.runtimes_view.env_preview
+        self.runtime_status = self.runtimes_view.runtime_status
+        self.runtime_output = self.runtimes_view.runtime_output
         self.manager.currentIndexChanged.connect(self._manager_changed)
-        self.runtime_version = QLineEdit()
-        self.runtime_version.setPlaceholderText(
-            "Exact numeric version, for example 3.14.0"
-        )
-        form.addRow("Existing manager", self.manager)
-        form.addRow("Runtime", self.runtime)
-        form.addRow("Version", self.runtime_version)
-        self.runtime_preview = QPushButton("Review runtime installation")
         self.runtime_preview.clicked.connect(self._preview_runtime)
-        form.addRow(self.runtime_preview)
-        self.add_runtime = QPushButton("Add or update runtime choice in collection")
         self.add_runtime.clicked.connect(self._add_runtime)
-        form.addRow(self.add_runtime)
-        form.addRow(
-            text_label(
-                "Managers must already be installed. Moving channels and automatic manager bootstrap are not available. SDKMAN!, Conda/Mamba and mise Java remain staged where reviewed support is unavailable."
-            )
-        )
-        layout.addWidget(runtime_group)
-        self._manager_changed()
-        project_group = QGroupBox("Project-local configuration")
-        project_form = QFormLayout(project_group)
-        project_row = QHBoxLayout()
-        self.project = QLineEdit()
-        self.project.setPlaceholderText("Choose an existing project directory")
-        project_row.addWidget(self.project, 1)
-        self.project_browse = QPushButton("Browse")
         self.project_browse.clicked.connect(self._project_dialog)
-        project_row.addWidget(self.project_browse)
-        project_form.addRow("Project", project_row)
-        self.config_kind = QComboBox()
-        for title, kind in (
-            ("Python version (.python-version)", "python"),
-            ("Rust toolchain", "rust"),
-            ("mise Python", "mise-python"),
-            ("mise Node", "mise-node"),
-        ):
-            self.config_kind.addItem(title, kind)
-        self.config_version = QLineEdit()
-        self.config_version.setPlaceholderText("Exact numeric version")
-        project_form.addRow("Configuration", self.config_kind)
-        project_form.addRow("Version", self.config_version)
-        self.config_preview = QPushButton("Review project file")
         self.config_preview.clicked.connect(self._preview_config)
-        project_form.addRow(self.config_preview)
-        self.env_name = QComboBox()
-        self.env_name.addItems(("JAVA_HOME", "PYTHONPATH", "GOPATH", "CARGO_HOME"))
-        self.env_path = QLineEdit()
-        self.env_path.setPlaceholderText("Relative project path, for example .venv")
-        project_form.addRow("Project path variable", self.env_name)
-        project_form.addRow("Relative path", self.env_path)
-        self.env_preview = QPushButton("Review project environment file")
         self.env_preview.clicked.connect(self._preview_environment)
-        project_form.addRow(self.env_preview)
-        project_form.addRow(
-            text_label(
-                "These actions preview owned project files. They do not edit global PATH, shell startup files, services, or system settings."
-            )
-        )
-        layout.addWidget(project_group)
-        self.runtime_status = text_label(
-            "Choose an installed manager and an exact version to prepare a review."
-        )
-        layout.addWidget(self.runtime_status)
-        self.runtime_output = QPlainTextEdit()
-        self.runtime_output.setReadOnly(True)
-        self.runtime_output.setMaximumHeight(140)
-        layout.addWidget(self.runtime_output)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setWidget(page)
-        return scroll
+        self.runtimes_page = scroll_page(self.runtimes_view)
+        self._manager_changed()
+        self._load_manifest(self.base_manifest)
 
     def _preset_changed(self) -> None:
         manifest = self.presets.currentData()
@@ -476,14 +211,6 @@ class EnvironmentPages(QObject):
         self.preview = None
         self.package_button.setEnabled(False)
 
-    @staticmethod
-    def _active(cancel: Event) -> None:
-        if cancel.is_set():
-            raise AdapterError(
-                ErrorCode.CANCELLED,
-                "The environment task was cancelled before applying changes.",
-            )
-
     def _import_dialog(self) -> None:
         filename, _ = QFileDialog.getOpenFileName(
             self.presets_page,
@@ -496,8 +223,7 @@ class EnvironmentPages(QObject):
 
     def import_manifest(self, path: Path) -> bool:
         def task(cancel: Event, event: object, output: object) -> Manifest:
-            self._active(cancel)
-            return load_manifest(path)
+            return self.workflow.import_manifest(path, cancel)
 
         return self.controller.start("import", task)
 
@@ -520,9 +246,7 @@ class EnvironmentPages(QObject):
             return False
 
         def task(cancel: Event, event: object, output: object) -> Path:
-            self._active(cancel)
-            save_manifest(manifest, path)
-            return path
+            return self.workflow.export_manifest(manifest, path, cancel)
 
         return self.controller.start("export", task)
 
@@ -534,9 +258,7 @@ class EnvironmentPages(QObject):
             return
         self.controller.start(
             "manifest-preview",
-            lambda cancel, event, output: preview_manifest(
-                manifest, self.services.planner, cancel=cancel
-            ),
+            lambda cancel, event, output: self.workflow.preview(manifest, cancel),
         )
 
     def _review_packages(self) -> None:
@@ -848,8 +570,9 @@ class EnvironmentPages(QObject):
             ):
 
                 def apply(cancel: Event, event: object, output: object) -> Path:
-                    self._active(cancel)
-                    return self.config_service.apply(plan, confirmed=True)
+                    return self.workflow.apply_config(
+                        plan, confirmed=True, cancel=cancel
+                    )
 
                 self.controller.start("config-apply", apply, from_review=True)
             else:

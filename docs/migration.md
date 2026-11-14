@@ -15,6 +15,8 @@ The repository cleanup moves code without removing legacy behavior:
 | Python modules mixed into `catalog/` | `services/catalog/`; `catalog/` now holds JSON data |
 | Flat `tests/test_*.py` | `tests/unit/`, `tests/catalog/`, `tests/integration/`, with shared `tests/fixtures/` |
 | Root `image.png` | `resources/legacy-menu.png` |
+| Desktop page construction in `app/ui/main_window.py` and `environments.py` | `app/ui/pages/`, shared `components.py`, `navigation.py`, focused presenters, `environment_worker.py` and `change_review.py` |
+| Environment file task orchestration in Qt callbacks | Qt-independent `application/environments.py`, reusing existing core services |
 
 `main.py` is now a small launcher for `app/main.py`, equivalent to `python -m app`.
 Default startup shows help; `catalog validate` and `catalog search` are read-only.

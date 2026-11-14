@@ -215,14 +215,14 @@ class PersistentDesktopTests(unittest.TestCase):
         window._completed(ExecutionReport((), (self.audit(),)))
         self.wait_for(lambda: not window.state_controller.busy)
         with mock.patch(
-            "app.ui.main_window.QMessageBox.question",
+            "app.ui.session_presenter.QMessageBox.question",
             return_value=QMessageBox.StandardButton.No,
         ) as question:
             window._clear()
             self.assertEqual(question.call_args.args[-1], QMessageBox.StandardButton.No)
         self.assertEqual(len(window.controller.history), 1)
         with mock.patch(
-            "app.ui.main_window.QMessageBox.question",
+            "app.ui.session_presenter.QMessageBox.question",
             return_value=QMessageBox.StandardButton.Yes,
         ):
             window._clear()

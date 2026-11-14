@@ -1,105 +1,46 @@
-"""Thin desktop widgets: render service state and send explicit user intent."""
+"""Desktop composition, signal wiring, inventory actions and shutdown coordination."""
 
 from collections import OrderedDict
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QUrl, Slot
-from PySide6.QtGui import QCloseEvent, QDesktopServices
+from PySide6.QtCore import QTimer, Slot
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QCheckBox,
-    QComboBox,
-    QDialog,
-    QFormLayout,
-    QFrame,
-    QGroupBox,
-    QHBoxLayout,
-    QHeaderView,
-    QLabel,
-    QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
-    QMessageBox,
-    QPlainTextEdit,
-    QProgressBar,
-    QPushButton,
-    QScrollArea,
-    QSpinBox,
-    QSplitter,
-    QStackedWidget,
-    QTableWidget,
-    QTableWidgetItem,
-    QVBoxLayout,
-    QWidget,
 )
 
 from models.catalog import Package
 from models.discovery import LivePackage
-from models.environment import RuntimeAudit
-from models.operations import OperationState, ProgressEvent
-from models.package import PackageVersion
 from models.planning import OperationAction
-from models.specs import InstallSpec
-from persistence.store import DesktopSettings
 from services.desktop import (
     DesktopServices,
     DesktopSnapshot,
     InstalledRow,
     UpdateReport,
 )
-from services.discovery import SearchSnapshot
-from services.records import AuditRecord, ExecutionReport, PackageRequest, ReviewedPlan
-from system.commands import OutputSnapshot
+from services.records import PackageRequest
 
+from .components import fill_table, scroll_page
 from .environments import EnvironmentPages
-from .review import ReviewDialog
+from .explore_presenter import ExplorePresenter
+from .navigation import PAGE_NAMES, DesktopShell
+from .operation_presenter import OperationPresenter
+from .pages.dashboard import DashboardPage
+from .pages.explore import ExplorePage
+from .pages.history import HistoryPage
+from .pages.installed import InstalledPage
+from .pages.queue import QueuePage
+from .pages.settings import SettingsPage
+from .pages.updates import UpdatesPage
 from .search import SearchController
-from .state import StateController, StoredState
-from .support import SupportControls
+from .session_presenter import SessionPresenter
+from .state import StateController
 from .theme import apply_theme
 from .workers import Controller
 
 
-def label(text: str, name: str = "") -> QLabel:
-    widget = QLabel(text)
-    widget.setTextFormat(Qt.TextFormat.PlainText)
-    widget.setWordWrap(True)
-    widget.setObjectName(name)
-    return widget
-
-
-def table(headers: tuple[str, ...]) -> QTableWidget:
-    widget = QTableWidget(0, len(headers))
-    widget.setHorizontalHeaderLabels(headers)
-    widget.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-    widget.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-    widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-    widget.verticalHeader().hide()
-    widget.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-    widget.setWordWrap(False)
-    return widget
-
-
-def fill_table(widget: QTableWidget, rows: list[tuple[str, ...]]) -> None:
-    widget.setRowCount(len(rows))
-    for row, values in enumerate(rows):
-        for column, value in enumerate(values):
-            widget.setItem(row, column, QTableWidgetItem(value))
-
-
 class MainWindow(QMainWindow):
-    pages = (
-        "Dashboard",
-        "Explore",
-        "Installed",
-        "Updates",
-        "Queue",
-        "History",
-        "Settings",
-        "Presets",
-        "Runtimes",
-    )
+    pages = PAGE_NAMES
 
     def __init__(
         self,
@@ -110,6 +51,33 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self.services = services
+        self.explore_presenter = ExplorePresenter(self)
+        self._search = self.explore_presenter._search
+        self._search_ready = self.explore_presenter._search_ready
+        self._search_busy = self.explore_presenter._search_busy
+        self._live_details = self.explore_presenter._live_details
+        self._select = self.explore_presenter._select
+        self._action_state = self.explore_presenter._action_state
+        self._homepage = self.explore_presenter._homepage
+        self._preview = self.explore_presenter._preview
+        self.operation_presenter = OperationPresenter(self)
+        self._review = self.operation_presenter._review
+        self._event = self.operation_presenter._event
+        self._output = self.operation_presenter._output
+        self._show_log = self.operation_presenter._show_log
+        self._completed = self.operation_presenter._completed
+        self.session_presenter = SessionPresenter(self)
+        self._history_rows = self.session_presenter._history_rows
+        self._clear = self.session_presenter._clear
+        self._clear_session = self.session_presenter._clear_session
+        self._settings_enabled = self.session_presenter._settings_enabled
+        self._preferences_changed = self.session_presenter._preferences_changed
+        self._merge_history = self.session_presenter._merge_history
+        self._runtime_audit = self.session_presenter._runtime_audit
+        self._state_loaded = self.session_presenter._state_loaded
+        self._state_saved = self.session_presenter._state_saved
+        self._state_error = self.session_presenter._state_error
+        self._state_busy = self.session_presenter._state_busy
         self.state_path = state_path
         self.state_controller = StateController(self)
         self.state_loading = state_path is not None
@@ -135,35 +103,103 @@ class MainWindow(QMainWindow):
         self.resize(1180, 800)
         self.setMinimumSize(940, 650)
         apply_theme()
-        central = QWidget()
-        root = QHBoxLayout(central)
-        root.setContentsMargins(0, 0, 0, 0)
-        sidebar = QFrame()
-        sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(190)
-        side = QVBoxLayout(sidebar)
-        side.setContentsMargins(18, 18, 18, 18)
-        side.addWidget(label("Dev Setup", "brand"))
-        side.addWidget(label("Your development toolbox"))
-        self.navigation = QListWidget()
-        self.navigation.setObjectName("navigation")
-        self.navigation.addItems(self.pages)
-        side.addWidget(self.navigation)
-        side.addWidget(label("Curated sources\nReview every change"))
-        root.addWidget(sidebar)
-        content = QVBoxLayout()
-        content.setContentsMargins(26, 22, 26, 16)
-        self.heading = label("Dashboard", "pageTitle")
-        content.addWidget(self.heading)
-        self.stack = QStackedWidget()
-        content.addWidget(self.stack, 1)
-        self._dashboard()
-        self._explore()
-        self._installed()
-        self._updates()
-        self._queue()
-        self._history()
-        self._settings()
+        self.shell = DesktopShell()
+        self.navigation = self.shell.navigation
+        self.heading = self.shell.heading
+        self.stack = self.shell.stack
+        self.status = self.shell.status
+        self.refresh_button = self.shell.refresh_button
+        self.cancel_button = self.shell.cancel_button
+        self.progress = self.shell.progress
+        self.dashboard_page = DashboardPage(services)
+        self.inventory_count = self.dashboard_page.inventory_count
+        self.backend_status = self.dashboard_page.backend_status
+        self.dashboard_notes = self.dashboard_page.dashboard_notes
+        self.activity = self.dashboard_page.activity
+        self.dashboard_page.explore_button.clicked.connect(
+            lambda: self.navigation.setCurrentRow(1)
+        )
+        self.stack.addWidget(self.dashboard_page)
+        self.explore_page = ExplorePage(services)
+        self.search = self.explore_page.search
+        self.category = self.explore_page.category
+        self.compatible = self.explore_page.compatible
+        self.live_enabled = self.explore_page.live_enabled
+        self.refresh_live = self.explore_page.refresh_live
+        self.cancel_search = self.explore_page.cancel_search
+        self.search_timer = self.explore_page.search_timer
+        self.package_list = self.explore_page.package_list
+        self.package_name = self.explore_page.package_name
+        self.package_details = self.explore_page.package_details
+        self.homepage = self.explore_page.homepage
+        self.source = self.explore_page.source
+        self.action = self.explore_page.action
+        self.version = self.explore_page.version
+        self.action_note = self.explore_page.action_note
+        self.review_button = self.explore_page.review_button
+        self.search_summary = self.explore_page.search_summary
+        self.live_enabled.toggled.connect(lambda: self._search())
+        self.refresh_live.clicked.connect(lambda: self._search(force=True))
+        self.cancel_search.clicked.connect(self.search_controller.cancel)
+        self.search_timer.timeout.connect(self.search_controller.dispatch)
+        self.search.textChanged.connect(lambda: self._search(deferred=True))
+        self.category.currentIndexChanged.connect(lambda: self._search())
+        self.compatible.toggled.connect(lambda: self._search())
+        self.package_list.currentRowChanged.connect(self._select)
+        self.homepage.clicked.connect(self._homepage)
+        self.source.currentIndexChanged.connect(self._action_state)
+        self.action.currentIndexChanged.connect(self._action_state)
+        self.review_button.clicked.connect(self._preview)
+        self.stack.addWidget(self.explore_page)
+        self.installed_page = InstalledPage()
+        self.installed_table = self.installed_page.installed_table
+        self.installed_note = self.installed_page.installed_note
+        self.installed_view = self.installed_page.installed_view
+        self.verify_button = self.installed_page.verify_button
+        self.remove_button = self.installed_page.remove_button
+        self.installed_view.clicked.connect(self._view_installed)
+        self.verify_button.clicked.connect(
+            lambda: self._installed_request(OperationAction.VERIFY)
+        )
+        self.remove_button.clicked.connect(
+            lambda: self._installed_request(OperationAction.UNINSTALL)
+        )
+        self.installed_table.itemSelectionChanged.connect(self._selection_buttons)
+        self.stack.addWidget(self.installed_page)
+        self.updates_page = UpdatesPage()
+        self.update_table = self.updates_page.update_table
+        self.update_note = self.updates_page.update_note
+        self.check_updates = self.updates_page.check_updates
+        self.review_update = self.updates_page.review_update
+        self.check_updates.clicked.connect(self._check_updates)
+        self.review_update.clicked.connect(self._update_request)
+        self.update_table.itemSelectionChanged.connect(self._selection_buttons)
+        self.stack.addWidget(self.updates_page)
+        self.queue_page = QueuePage()
+        self.queue_table = self.queue_page.queue_table
+        self.log_view = self.queue_page.log_view
+        self.queue_table.itemSelectionChanged.connect(self._show_log)
+        self.stack.addWidget(self.queue_page)
+        self.history_page = HistoryPage(persistent=state_path is not None)
+        self.history_note = self.history_page.history_note
+        self.history_table = self.history_page.history_table
+        self.stack.addWidget(self.history_page)
+        self.settings_page = SettingsPage(
+            services, persistent=state_path is not None, loading=self.state_loading
+        )
+        self.theme = self.settings_page.theme
+        self.debounce = self.settings_page.debounce
+        self.live_search_setting = self.settings_page.live_search_setting
+        self.persistence_note = self.settings_page.persistence_note
+        self.clear_button = self.settings_page.clear_button
+        self.support = self.settings_page.support
+        self.theme.currentIndexChanged.connect(lambda index: apply_theme(index == 1))
+        self.debounce.valueChanged.connect(self.search_timer.setInterval)
+        self.live_search_setting.toggled.connect(self.live_enabled.setChecked)
+        self.live_enabled.toggled.connect(self.live_search_setting.setChecked)
+        self.clear_button.clicked.connect(self._clear)
+        self.support.busy_changed.connect(self._support_busy)
+        self.stack.addWidget(scroll_page(self.settings_page))
         self.environment = EnvironmentPages(
             services,
             lambda: not self.controller.busy and not self.clearing_history,
@@ -177,26 +213,9 @@ class MainWindow(QMainWindow):
         self.controller.external_busy = lambda: (
             self.environment.controller.busy or self.clearing_history
         )
-        footer = QHBoxLayout()
-        self.status = label(
-            "Ready. Refresh inventory to inspect installed packages.", "muted"
-        )
-        footer.addWidget(self.status, 1)
-        self.refresh_button = QPushButton("Refresh inventory")
+        self.setCentralWidget(self.shell)
         self.refresh_button.clicked.connect(self.controller.refresh)
-        footer.addWidget(self.refresh_button)
-        self.cancel_button = QPushButton("Cancel current task")
         self.cancel_button.clicked.connect(self._cancel)
-        self.cancel_button.hide()
-        footer.addWidget(self.cancel_button)
-        content.addLayout(footer)
-        self.progress = QProgressBar()
-        self.progress.setTextVisible(False)
-        self.progress.hide()
-        content.addWidget(self.progress)
-        root.addLayout(content, 1)
-        self.setCentralWidget(central)
-        self.navigation.currentRowChanged.connect(self._navigate)
         self.navigation.setCurrentRow(0)
         self.controller.busy_changed.connect(self._busy)
         self.controller.snapshot_ready.connect(self._snapshot)
@@ -219,551 +238,6 @@ class MainWindow(QMainWindow):
             self.state_controller.startup(state_path)
         if auto_refresh:
             QTimer.singleShot(0, self.controller.refresh)
-
-    def _page(self) -> QVBoxLayout:
-        widget = QWidget()
-        widget.setObjectName("page")
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.stack.addWidget(widget)
-        return layout
-
-    def _dashboard(self) -> None:
-        layout = self._page()
-        host = self.services.host
-        distro = (
-            f" · {host.distribution.name or host.distribution.id} {host.distribution.version or ''}"
-            if host.distribution
-            else ""
-        )
-        layout.addWidget(
-            label(
-                f"{host.os.value.title()} · {host.architecture.value}{distro}",
-                "sectionTitle",
-            )
-        )
-        layout.addWidget(
-            label(
-                "Find the tools you need, review their source, and keep track of every operation.",
-                "muted",
-            )
-        )
-        stats = QGroupBox("Your workspace")
-        form = QFormLayout(stats)
-        form.addRow("Curated tools", label(str(len(self.services.catalog.packages))))
-        self.inventory_count = label("Not checked")
-        form.addRow("Native installed packages", self.inventory_count)
-        self.backend_status = label("Not checked")
-        form.addRow("Package managers", self.backend_status)
-        layout.addWidget(stats)
-        self.dashboard_notes = label(
-            "Inventory is read-only. No package is installed or upgraded during refresh.",
-            "muted",
-        )
-        layout.addWidget(self.dashboard_notes)
-        activity = QGroupBox("Recent activity")
-        activity_layout = QVBoxLayout(activity)
-        self.activity = label("No operations in this session.")
-        activity_layout.addWidget(self.activity)
-        layout.addWidget(activity)
-        explore = QPushButton("Explore the catalog")
-        explore.setObjectName("primary")
-        explore.clicked.connect(lambda: self.navigation.setCurrentRow(1))
-        layout.addWidget(explore, alignment=Qt.AlignmentFlag.AlignLeft)
-        layout.addStretch()
-
-    def _explore(self) -> None:
-        layout = self._page()
-        filters = QHBoxLayout()
-        self.search = QLineEdit()
-        self.search.setPlaceholderText("Search tools, languages, or package IDs")
-        filters.addWidget(self.search, 1)
-        self.category = QComboBox()
-        self.category.addItem("All categories", None)
-        for category in self.services.catalog.categories:
-            self.category.addItem(category.replace("-", " ").title(), category)
-        filters.addWidget(self.category)
-        self.compatible = QCheckBox("Curated for this platform")
-        filters.addWidget(self.compatible)
-        layout.addLayout(filters)
-        live_controls = QHBoxLayout()
-        self.live_enabled = QCheckBox("Include live sources")
-        self.live_enabled.setChecked(True)
-        self.live_enabled.setToolTip(
-            "Use detected package managers. Queries may use the network and refresh native metadata caches."
-        )
-        self.live_enabled.toggled.connect(lambda: self._search())
-        live_controls.addWidget(self.live_enabled)
-        self.refresh_live = QPushButton("Refresh live results")
-        self.refresh_live.clicked.connect(lambda: self._search(force=True))
-        live_controls.addWidget(self.refresh_live)
-        self.cancel_search = QPushButton("Cancel search")
-        self.cancel_search.clicked.connect(self.search_controller.cancel)
-        self.cancel_search.hide()
-        live_controls.addWidget(self.cancel_search)
-        live_controls.addStretch()
-        layout.addLayout(live_controls)
-        self.search_timer = QTimer(self)
-        self.search_timer.setSingleShot(True)
-        self.search_timer.setInterval(250)
-        self.search_timer.timeout.connect(self.search_controller.dispatch)
-        self.search.textChanged.connect(lambda: self._search(deferred=True))
-        self.category.currentIndexChanged.connect(lambda: self._search())
-        self.compatible.toggled.connect(lambda: self._search())
-        split = QSplitter()
-        self.package_list = QListWidget()
-        self.package_list.setWordWrap(True)
-        self.package_list.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.package_list.currentRowChanged.connect(self._select)
-        split.addWidget(self.package_list)
-        details = QGroupBox("Package details")
-        detail = QVBoxLayout(details)
-        self.package_name = label("Choose a package", "sectionTitle")
-        detail.addWidget(self.package_name)
-        self.package_details = QPlainTextEdit()
-        self.package_details.setReadOnly(True)
-        detail.addWidget(self.package_details, 1)
-        self.homepage = QPushButton("Open official homepage")
-        self.homepage.clicked.connect(self._homepage)
-        detail.addWidget(self.homepage)
-        form = QFormLayout()
-        self.source = QComboBox()
-        self.source.currentIndexChanged.connect(self._action_state)
-        form.addRow("Source", self.source)
-        self.action = QComboBox()
-        for action in OperationAction:
-            self.action.addItem(action.value.title(), action)
-        self.action.currentIndexChanged.connect(self._action_state)
-        form.addRow("Action", self.action)
-        self.version = QLineEdit()
-        self.version.setPlaceholderText(
-            "Native default (exact version where supported)"
-        )
-        form.addRow("Version", self.version)
-        detail.addLayout(form)
-        self.action_note = label("", "muted")
-        detail.addWidget(self.action_note)
-        self.review_button = QPushButton("Review operation")
-        self.review_button.setObjectName("primary")
-        self.review_button.clicked.connect(self._preview)
-        detail.addWidget(self.review_button)
-        split.addWidget(details)
-        split.setSizes([440, 480])
-        layout.addWidget(split, 1)
-        self.search_summary = label("", "muted")
-        layout.addWidget(self.search_summary)
-
-    def _installed(self) -> None:
-        layout = self._page()
-        layout.addWidget(
-            label(
-                "Native inventory is separate from executable detection and service health.",
-                "muted",
-            )
-        )
-        self.installed_table = table(
-            ("Package", "Version", "Backend", "Installed source")
-        )
-        layout.addWidget(self.installed_table)
-        self.installed_note = label(
-            "Refresh inventory to load installed packages.", "muted"
-        )
-        layout.addWidget(self.installed_note)
-        buttons = QHBoxLayout()
-        self.installed_view = QPushButton("View package")
-        self.installed_view.clicked.connect(self._view_installed)
-        buttons.addWidget(self.installed_view)
-        self.verify_button = QPushButton("Review verification")
-        self.verify_button.clicked.connect(
-            lambda: self._installed_request(OperationAction.VERIFY)
-        )
-        buttons.addWidget(self.verify_button)
-        self.remove_button = QPushButton("Review removal")
-        self.remove_button.clicked.connect(
-            lambda: self._installed_request(OperationAction.UNINSTALL)
-        )
-        buttons.addWidget(self.remove_button)
-        buttons.addStretch()
-        layout.addLayout(buttons)
-        self.installed_table.itemSelectionChanged.connect(self._selection_buttons)
-        self._selection_buttons()
-
-    def _updates(self) -> None:
-        layout = self._page()
-        layout.addWidget(
-            label(
-                "Check installed catalog tools against their native candidates. Every update requires a fresh review.",
-                "muted",
-            )
-        )
-        self.update_table = table(("Package", "Installed", "Candidate", "Source"))
-        layout.addWidget(self.update_table)
-        self.update_note = label("Refresh inventory, then check for updates.", "muted")
-        layout.addWidget(self.update_note)
-        buttons = QHBoxLayout()
-        self.check_updates = QPushButton("Check for updates")
-        self.check_updates.clicked.connect(self._check_updates)
-        buttons.addWidget(self.check_updates)
-        self.review_update = QPushButton("Review selected update")
-        self.review_update.clicked.connect(self._update_request)
-        buttons.addWidget(self.review_update)
-        buttons.addStretch()
-        layout.addLayout(buttons)
-        self.update_table.itemSelectionChanged.connect(self._selection_buttons)
-        self.review_update.setEnabled(False)
-
-    def _queue(self) -> None:
-        layout = self._page()
-        layout.addWidget(
-            label(
-                "One plan runs at a time. Logs stay in this session and are bounded per operation.",
-                "muted",
-            )
-        )
-        self.queue_table = table(("Package", "State", "Progress", "Result"))
-        self.queue_table.itemSelectionChanged.connect(self._show_log)
-        layout.addWidget(self.queue_table, 1)
-        self.log_view = QPlainTextEdit()
-        self.log_view.setReadOnly(True)
-        self.log_view.setPlaceholderText("Select an operation to inspect its output.")
-        layout.addWidget(self.log_view, 1)
-
-    def _history(self) -> None:
-        layout = self._page()
-        self.history_note = label(
-            "History saves approval and result metadata locally; process output stays in this session."
-            if self.state_path is not None
-            else "Session history contains approval and result metadata. It is not saved after closing the app.",
-            "muted",
-        )
-        layout.addWidget(self.history_note)
-        self.history_table = table(
-            ("Package / action", "Source", "Version", "Result", "Finished (UTC)")
-        )
-        layout.addWidget(self.history_table)
-
-    def _settings(self) -> None:
-        layout = self._page()
-        appearance = QGroupBox("Appearance and search")
-        form = QFormLayout(appearance)
-        self.theme = QComboBox()
-        self.theme.addItems(("Light", "Dark"))
-        self.theme.currentIndexChanged.connect(lambda index: apply_theme(index == 1))
-        form.addRow("Theme", self.theme)
-        self.debounce = QSpinBox()
-        self.debounce.setRange(150, 1000)
-        self.debounce.setValue(250)
-        self.debounce.setSuffix(" ms")
-        self.debounce.valueChanged.connect(self.search_timer.setInterval)
-        form.addRow("Search delay", self.debounce)
-        self.live_search_setting = QCheckBox(
-            "Search detected managers (may access the network)"
-        )
-        self.live_search_setting.setChecked(True)
-        self.live_search_setting.toggled.connect(self.live_enabled.setChecked)
-        self.live_enabled.toggled.connect(self.live_search_setting.setChecked)
-        form.addRow("Live discovery", self.live_search_setting)
-        form.addRow("Concurrency", label("One plan at a time"))
-        layout.addWidget(appearance)
-        sources = QGroupBox("Package sources")
-        source_layout = QVBoxLayout(sources)
-        source_layout.addWidget(
-            label(
-                "Choose a reviewed source in package details. Adding native repositories is not available here.",
-                "muted",
-            )
-        )
-        source_layout.addWidget(
-            label(
-                "\n".join(
-                    sorted(
-                        {
-                            f"{spec.source.name}: {spec.source.url or 'URL unavailable'}"
-                            for p in self.services.catalog.packages
-                            for spec in p.install_specs
-                            if spec.support.supports(self.services.host)
-                        }
-                    )
-                )
-                or "No reviewed source mappings for this platform."
-            )
-        )
-        layout.addWidget(sources)
-        privacy = QGroupBox("Privacy and history")
-        privacy_layout = QVBoxLayout(privacy)
-        privacy_layout.addWidget(
-            label(
-                "Process output stays in this session. No telemetry is collected."
-                if self.state_path is not None
-                else "Settings and history are kept in memory. Native administrator prompts handle passwords. No telemetry is collected."
-            )
-        )
-        self.persistence_note = label(
-            "Loading saved preferences…"
-            if self.state_loading
-            else "Session-only mode.",
-            "muted",
-        )
-        privacy_layout.addWidget(self.persistence_note)
-        self.clear_button = QPushButton(
-            "Clear saved history and session logs"
-            if self.state_path is not None
-            else "Clear session history and logs"
-        )
-        self.clear_button.clicked.connect(self._clear)
-        privacy_layout.addWidget(
-            self.clear_button, alignment=Qt.AlignmentFlag.AlignLeft
-        )
-        layout.addWidget(privacy)
-        self.support = SupportControls(self.services.host, self)
-        self.support.busy_changed.connect(self._support_busy)
-        layout.addWidget(self.support.group)
-        layout.addStretch()
-        page = self.stack.widget(self.stack.count() - 1)
-        assert page is not None
-        self.stack.removeWidget(page)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll.setWidget(page)
-        self.stack.addWidget(scroll)
-
-    @Slot(int)
-    def _navigate(self, index: int) -> None:
-        self.stack.setCurrentIndex(index)
-        self.heading.setText(self.pages[index])
-
-    def _search(self, *, deferred: bool = False, force: bool = False) -> None:
-        self.search_timer.stop()
-        if self.state_loading or self.pending_close:
-            return
-        self.search_controller.request(
-            self.search.text(),
-            category=self.category.currentData(),
-            mapped_only=self.compatible.isChecked(),
-            enabled=self.live_enabled.isChecked(),
-            deferred=deferred,
-            force=force,
-        )
-        if deferred and self.search_controller.pending is not None:
-            self.search_timer.start()
-
-    @Slot(object)
-    def _search_ready(self, snapshot: SearchSnapshot) -> None:
-        if self.pending_close:
-            return
-        selected_id = self.package.id if self.package else None
-        selected_live = self.live_package.key if self.live_package else None
-        self.matches = [match.package for match in snapshot.curated]
-        self.live_matches = list(snapshot.live)
-        self.package_list.blockSignals(True)
-        self.package_list.clear()
-        for package in self.matches:
-            mapped = any(
-                s.support.supports(self.services.host) for s in package.install_specs
-            )
-            self.package_list.addItem(
-                QListWidgetItem(
-                    f"{package.name}\n{package.summary}\n{package.category.replace('-', ' ')} · Curated · {'Platform mapping available' if mapped else 'Unavailable on this platform'}"
-                )
-            )
-        for live_package in self.live_matches:
-            self.package_list.addItem(
-                QListWidgetItem(
-                    f"{live_package.name}\n{live_package.summary or live_package.native_id}\nLive · {live_package.backend} / {live_package.source_id} · {live_package.native_id}"
-                )
-            )
-        index = next((n for n, p in enumerate(self.matches) if p.id == selected_id), -1)
-        same_curated = index >= 0
-        if index < 0 and selected_live is not None:
-            index = next(
-                (
-                    len(self.matches) + n
-                    for n, p in enumerate(self.live_matches)
-                    if p.key == selected_live
-                ),
-                -1,
-            )
-        if index < 0:
-            index = 0 if self.package_list.count() else -1
-        self.package_list.setCurrentRow(index)
-        self.package_list.blockSignals(False)
-        if not same_curated:
-            self._select(index)
-        states = []
-        for status in snapshot.providers:
-            message = f"{status.provider_id}: {status.state.value}"
-            if status.cache_age_seconds is not None:
-                message += f" ({int(status.cache_age_seconds)}s old)"
-            if status.limited:
-                message += " (result limit reached)"
-            if status.error:
-                message += f" · {status.error.message}"
-            states.append(message)
-        state = (
-            "Search cancelled; partial results retained."
-            if snapshot.cancelled
-            else "Searching live sources…"
-            if not snapshot.complete
-            else "Search complete."
-        )
-        self.search_summary.setText(
-            f"{len(self.matches)} curated · {len(self.live_matches)} live · {state}\n"
-            + "\n".join(part for part in (snapshot.note, " | ".join(states)) if part)
-        )
-
-    @Slot(bool)
-    def _search_busy(self, busy: bool) -> None:
-        self.cancel_search.setVisible(busy)
-        if not busy and self.pending_close and not self._operation_busy():
-            QTimer.singleShot(0, self.close)
-
-    def _live_details(self) -> None:
-        package = self.live_package
-        if package is None:
-            return
-        self.package_name.setText(package.name)
-        self.package_details.setPlainText(
-            "\n".join(
-                [
-                    package.summary or "No description supplied.",
-                    "",
-                    "Discovery: Live (not curated)",
-                    f"Backend: {package.backend}",
-                    f"Source: {package.source_id}",
-                    f"Native ID: {package.native_id}",
-                    f"Reported version: {package.version or 'Unknown'}",
-                    f"Trust: {package.trust.value}",
-                    f"Search platform: {package.platform.os.value} / {package.platform.architecture.value}",
-                    "Platform compatibility and installation support have not been verified.",
-                    "",
-                    *package.caveats,
-                ]
-            )
-        )
-        self.homepage.setEnabled(False)
-        self.source.setEnabled(False)
-        self.action.setEnabled(False)
-        self.version.clear()
-        self.version.setEnabled(False)
-        self.review_button.setEnabled(False)
-        self.action_note.setText(
-            "Live discovery only. Installation needs a reviewed catalog mapping and plan."
-        )
-
-    @Slot(int)
-    def _select(self, index: int) -> None:
-        live_index = index - len(self.matches)
-        self.live_package = (
-            self.live_matches[live_index]
-            if 0 <= live_index < len(self.live_matches)
-            else None
-        )
-        if self.live_package is not None:
-            self.package = None
-            self.source.blockSignals(True)
-            self.source.clear()
-            self.source.addItem(self.live_package.source_id, None)
-            self.source.blockSignals(False)
-            self._live_details()
-            return
-        self.package = self.matches[index] if 0 <= index < len(self.matches) else None
-        self.source.setEnabled(self.package is not None)
-        self.action.setEnabled(self.package is not None)
-        self.source.clear()
-        self.version.clear()
-        package = self.package
-        self.package_name.setText(package.name if package else "No package selected")
-        self.homepage.setEnabled(package is not None)
-        if package:
-            for spec in package.install_specs:
-                if spec.support.supports(self.services.host):
-                    self.source.addItem(
-                        f"{spec.source.name} / {spec.backend} / {spec.native_id}", spec
-                    )
-        self._action_state()
-
-    def _action_state(self) -> None:
-        if self.live_package is not None:
-            self._live_details()
-            return
-        spec = self.source.currentData()
-        action = OperationAction(self.action.currentData())
-        package = self.package
-        lines = []
-        if package:
-            lines.extend(
-                [
-                    package.summary,
-                    "",
-                    f"Homepage: {package.homepage}",
-                    f"Documentation: {package.documentation or 'Not listed'}",
-                    f"License: {package.license or 'Not listed'}",
-                    f"Vendor: {package.vendor or 'Not listed'}",
-                    f"Category: {package.category}",
-                    f"Dependencies: {', '.join(d.package_id for d in package.dependencies) or 'None declared'}",
-                    f"Conflicts: {', '.join(package.conflicts) or 'None declared'}",
-                ]
-            )
-        reason = "No reviewed mapping for this OS, architecture, or distribution."
-        if isinstance(spec, InstallSpec) and isinstance(action, OperationAction):
-            reason = (
-                self.services.action_reason(spec, action)
-                or "A fresh plan will show the exact operation before approval."
-            )
-            lines.extend(
-                [
-                    "",
-                    f"Source: {spec.source.name} ({spec.source.kind.value}; {spec.source.trust.value})",
-                    f"Source URL: {spec.source.url or 'Not listed'}",
-                    f"Native ID: {spec.native_id}",
-                    f"Platform: {spec.support.os.value}; architectures: {', '.join(a.value for a in spec.support.architectures)}",
-                    f"Privileges: {spec.privilege.value}",
-                    f"Estimated size: {str(spec.estimated_size_bytes) + ' bytes' if spec.estimated_size_bytes is not None else 'Unknown'}",
-                    f"Restart required: {'Yes' if spec.restart_required else 'Not declared'}",
-                    *spec.notes,
-                ]
-            )
-            can_select_version = self.services.version_selection(spec, action)
-            self.version.setEnabled(can_select_version and not self._operation_busy())
-            if not can_select_version:
-                self.version.clear()
-            self.review_button.setEnabled(
-                self.services.action_reason(spec, action) is None
-                and not self._operation_busy()
-            )
-        else:
-            self.review_button.setEnabled(False)
-            self.version.setEnabled(False)
-        self.package_details.setPlainText("\n".join(lines))
-        self.action_note.setText(reason)
-
-    def _homepage(self) -> None:
-        if self.package:
-            QDesktopServices.openUrl(QUrl(self.package.homepage))
-
-    def _preview(self) -> None:
-        spec = self.source.currentData()
-        if self.package and isinstance(spec, InstallSpec):
-            try:
-                version = (
-                    PackageVersion(self.version.text().strip())
-                    if self.version.isEnabled() and self.version.text().strip()
-                    else None
-                )
-                request = PackageRequest(
-                    self.package.id,
-                    OperationAction(self.action.currentData()),
-                    spec.backend,
-                    spec.source.id,
-                    version,
-                )
-            except ValueError:
-                self._error("Enter a valid exact native version.")
-                return
-            self.controller.preview(request)
 
     def _operation_busy(self) -> bool:
         return (
@@ -944,187 +418,6 @@ class MainWindow(QMainWindow):
                 )
             )
 
-    @Slot(object)
-    def _review(self, reviewed: ReviewedPlan) -> None:
-        if self.pending_close:
-            self.controller.release_review()
-            return
-        if not self.controller.reviewing and not self.controller.reserve_review():
-            self.status.setText(
-                "Finish or cancel the current environment operation before reviewing another plan."
-            )
-            return
-        dialog = ReviewDialog(reviewed, self)
-        try:
-            if dialog.exec() == QDialog.DialogCode.Accepted and reviewed.plan.ready:
-                consent = dialog.consent()
-                if reviewed.plan.requires_consent and consent is None:
-                    return
-                self.navigation.setCurrentRow(4)
-                if self.controller.execute(reviewed, consent):
-                    for item in reviewed.plan.items:
-                        placeholder = f"pending-{reviewed.plan.id}-{item.package_id}"
-                        self._event(
-                            ProgressEvent(
-                                placeholder,
-                                item.package_id,
-                                OperationState.QUEUED,
-                                "Waiting for this plan's preceding operations.",
-                            )
-                        )
-                        self.pending_packages[item.package_id] = placeholder
-            else:
-                self.status.setText(
-                    "Plan review closed. No package changes were started."
-                )
-        finally:
-            self.controller.release_review()
-            dialog.deleteLater()
-
-    @Slot(object)
-    def _event(self, event: ProgressEvent) -> None:
-        placeholder = self.pending_packages.pop(event.package_id, None)
-        if placeholder in self.operation_rows:
-            self.operation_rows = OrderedDict(
-                (event.operation_id if key == placeholder else key, row)
-                for key, row in self.operation_rows.items()
-            )
-        if event.operation_id not in self.operation_rows:
-            if len(self.operation_rows) >= 100:
-                self.queue_table.removeRow(0)
-                self.operation_rows.popitem(last=False)
-                self.operation_rows = OrderedDict(
-                    (key, value - 1) for key, value in self.operation_rows.items()
-                )
-            self.operation_rows[event.operation_id] = self.queue_table.rowCount()
-            self.queue_table.insertRow(self.queue_table.rowCount())
-        row = self.operation_rows[event.operation_id]
-        for column, value in enumerate(
-            (
-                event.package_id,
-                event.state.value,
-                f"{event.percent:g}%" if event.percent is not None else "—",
-                event.message,
-            )
-        ):
-            self.queue_table.setItem(row, column, QTableWidgetItem(value))
-        if self.queue_table.currentRow() < 0:
-            self.queue_table.selectRow(row)
-        self.status.setText(f"{event.package_id}: {event.message}")
-        self._show_log()
-
-    @Slot(str, object)
-    def _output(self, operation_id: str, snapshot: OutputSnapshot) -> None:
-        streams = self.log_cache.setdefault(operation_id, {})
-        streams[snapshot.stream] = snapshot.text[-65536:] + (
-            "\n[Output truncated]" if snapshot.truncated else ""
-        )
-        while len(self.log_cache) > 100:
-            self.log_cache.popitem(last=False)
-        self._show_log()
-
-    def _show_log(self) -> None:
-        index = self.queue_table.currentRow()
-        operation_id = next(
-            (key for key, row in self.operation_rows.items() if row == index), None
-        )
-        streams = self.log_cache.get(operation_id, {}) if operation_id else {}
-        self.log_view.setPlainText(
-            "\n\n".join(f"{stream.upper()}\n{text}" for stream, text in streams.items())
-        )
-
-    @Slot(object)
-    def _completed(self, report: ExecutionReport) -> None:
-        self._merge_history(report.audit)
-        if self.state_path is not None and report.audit:
-            self.state_controller.append_audit(report.audit)
-        for operation in report.operations:
-            if operation.result:
-                result = operation.result
-                message = result.message + (
-                    f" Exit: {result.exit_code}."
-                    if result.exit_code is not None
-                    else ""
-                )
-                if result.error:
-                    message += f" {result.error.code.value}: {result.error.message}"
-                self._event(
-                    ProgressEvent(
-                        operation.id,
-                        operation.item.package_id,
-                        operation.state,
-                        message,
-                    )
-                )
-                self._output(
-                    operation.id,
-                    OutputSnapshot("stdout", result.stdout, result.output_truncated),
-                )
-                self._output(
-                    operation.id,
-                    OutputSnapshot("stderr", result.stderr, result.output_truncated),
-                )
-        self._history_rows()
-        self.status.setText(
-            "Plan finished. Review results in Queue; refresh inventory to inspect current state."
-        )
-
-    def _history_rows(self) -> None:
-        rows = list(reversed(self.controller.history))
-        fill_table(
-            self.history_table,
-            [
-                (
-                    f"{row.package_id} / {row.action}",
-                    f"{row.backend} / {row.source_id}",
-                    row.version or "Unknown",
-                    row.state,
-                    row.finished_at.strftime("%Y-%m-%d %H:%M:%S"),
-                )
-                for row in rows
-            ],
-        )
-        self.activity.setText(
-            "\n".join(
-                f"{row.package_id} · {row.action} · {row.state}" for row in rows[:5]
-            )
-            or "No operations in this session."
-        )
-
-    def _clear(self) -> None:
-        if self._operation_busy() or self.state_loading or self.clearing_history:
-            return
-        if self.state_path is not None:
-            if self.state_controller.busy:
-                self.persistence_note.setText(
-                    "Wait for saved history to finish before clearing it."
-                )
-                return
-            answer = QMessageBox.question(
-                self,
-                "Clear saved history?",
-                "Permanently remove saved approval/result history and current session logs? Installed tools are unaffected.",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if answer != QMessageBox.StandardButton.Yes:
-                return
-            self.clearing_history = True
-            self._busy(self.controller.busy)
-            self.state_controller.clear_history()
-            return
-        self._clear_session()
-
-    def _clear_session(self) -> None:
-        self.controller.history.clear()
-        self.operation_rows.clear()
-        self.pending_packages.clear()
-        self.log_cache.clear()
-        self.queue_table.setRowCount(0)
-        self.log_view.clear()
-        self._history_rows()
-        self.status.setText("History and session logs cleared.")
-
     @Slot(str)
     def _error(self, message: str) -> None:
         self.status.setText(message)
@@ -1150,96 +443,6 @@ class MainWindow(QMainWindow):
     @Slot(bool)
     def _environment_busy(self, busy: bool) -> None:
         self._busy(self.controller.busy)
-
-    def _settings_enabled(self, enabled: bool) -> None:
-        for widget in (
-            self.theme,
-            self.debounce,
-            self.live_search_setting,
-            self.live_enabled,
-        ):
-            widget.setEnabled(enabled)
-        self.clear_button.setEnabled(enabled and not self._operation_busy())
-
-    def _preferences_changed(self) -> None:
-        if self.state_path is None or self.state_loading or self.restoring_state:
-            return
-        self.state_controller.save_settings(
-            DesktopSettings(
-                "dark" if self.theme.currentIndex() == 1 else "light",
-                self.debounce.value(),
-                self.live_enabled.isChecked(),
-            )
-        )
-
-    def _merge_history(self, records: tuple[AuditRecord, ...]) -> None:
-        merged = {record.operation_id: record for record in records}
-        merged.update(
-            (record.operation_id, record) for record in self.controller.history
-        )
-        ordered = sorted(merged.values(), key=lambda record: record.finished_at)
-        self.controller.history.clear()
-        self.controller.history.extend(ordered)
-
-    def _runtime_audit(self, audit: object) -> None:
-        if not isinstance(audit, RuntimeAudit):
-            return
-        record = AuditRecord(
-            audit.operation_id,
-            "runtime-" + audit.runtime,
-            "install",
-            audit.manager,
-            "runtime-" + audit.manager,
-            audit.version,
-            audit.state.value,
-            audit.approved_at,
-            audit.finished_at,
-            audit.exit_code,
-        )
-        self._merge_history((record,))
-        self._history_rows()
-        if self.state_path is not None:
-            self.state_controller.append_audit((record,))
-
-    def _state_loaded(self, snapshot: object) -> None:
-        if not isinstance(snapshot, StoredState):
-            return
-        self.restoring_state = True
-        settings = snapshot.settings
-        self.theme.setCurrentIndex(1 if settings.theme == "dark" else 0)
-        self.debounce.setValue(settings.search_delay_ms)
-        self.live_enabled.setChecked(settings.live_search)
-        self.restoring_state = False
-        self.state_loading = False
-        self._settings_enabled(True)
-        self._merge_history(tuple(reversed(snapshot.history)))
-        self._history_rows()
-        self.persistence_note.setText(
-            "Settings and output-free history are saved locally."
-        )
-        self._search()
-
-    def _state_saved(self, kind: str) -> None:
-        if kind == "clear":
-            self._clear_session()
-            self.clearing_history = False
-            self._busy(self.controller.busy)
-        self.persistence_note.setText(
-            "Settings and output-free history are saved locally."
-        )
-
-    def _state_error(self, message: str) -> None:
-        self.state_loading = False
-        self.clearing_history = False
-        self.persistence_note.setText("Persistence warning: " + message)
-        self._settings_enabled(True)
-        self._busy(self.controller.busy)
-        if not self.pending_close:
-            self._search()
-
-    def _state_busy(self, busy: bool) -> None:
-        if not busy and self.pending_close:
-            QTimer.singleShot(0, self.close)
 
     def _support_busy(self, busy: bool) -> None:
         if not busy and self.pending_close:

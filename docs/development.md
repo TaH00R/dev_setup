@@ -58,6 +58,12 @@ interpreter without site packages, imports all modules in the root-level core
 packages, and rejects legacy/GUI imports and processes. Keep core packages in
 this repository root; do not recreate a nested `dev_setup/` directory.
 
+The import boundary also covers `application/`. Desktop pages can be exercised
+independently with `python -m unittest tests.gui.test_pages -q`; environment
+workflow checks use `python -m unittest tests.unit.test_application_workflows -q`.
+Both paths mock native work or use temporary files. The page suite includes a
+fresh-process 200% scaling check; it does not require a real display server.
+
 Runner tests spawn only disposable Python processes. Bridge tests run a fake
 Scoop script through native PowerShell where available and respect execution
 policy. They never invoke installed Scoop or install software. See

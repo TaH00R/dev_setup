@@ -25,7 +25,7 @@ from services.diagnostics import (
 )
 from services.updates import UpdateCheck, UpdateService
 
-from .environments import EnvironmentController
+from .environment_worker import EnvironmentController
 
 
 class SupportControls(QObject):

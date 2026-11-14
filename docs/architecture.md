@@ -47,6 +47,15 @@ coordinate operations against explicit adapter capabilities. Adapters validate
 native identifiers/options and construct argument arrays. The runner uses
 `shell=False`, bounded capture, timeouts, cancellation, and structured errors.
 Neither services nor widgets should build package-manager shell commands.
+
+Desktop page widgets live in `app/ui/pages/`, independent of `MainWindow`.
+The window wires navigation, focused Qt presenters and background controllers;
+page construction itself performs no native reads or writes. Root-level
+`application/` contains thin, Qt-independent workflows where multiple service
+steps need coordination. The initial environment workflow reuses the manifest,
+planning and project-configuration services, including their validation and
+consent rules. Existing `services/desktop.py` already supplies the package
+queries, so it is reused directly instead of wrapped in a new framework.
 The user-authorized fixed Scoop `-File` bridge is documented in
 [package-manager boundaries](package-managers.md); it is not a general script API.
 
