@@ -39,7 +39,7 @@ class StateError(ValueError):
 
 @dataclass(frozen=True)
 class DesktopSettings:
-    theme: str = "light"
+    theme: str = "dark"
     search_delay_ms: int = 250
     live_search: bool = True
 

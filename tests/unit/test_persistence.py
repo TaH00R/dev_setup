@@ -42,6 +42,7 @@ class PersistenceTests(unittest.TestCase):
     def test_settings_and_history_survive_reopen_without_output_storage(self):
         store = StateStore(self.path)
         self.assertEqual(store.load_settings(), DesktopSettings())
+        self.assertEqual(store.load_settings().theme, "dark")
         store.save_settings(DesktopSettings("dark", 600, False))
         store.append_audit((self.record(),))
         store.close()

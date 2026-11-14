@@ -38,6 +38,7 @@ native readers are reviewed. The UI explains this rather than guessing support.
 - **Settings** saves the light/dark theme, search delay and live-search preference,
   lists reviewed sources, and can clear saved history and session logs after
   confirmation. Native repository changes and configurable concurrency remain staged.
+  Dark mode is the default for new sessions; an existing saved theme takes precedence.
 
 ## Review and approval
 

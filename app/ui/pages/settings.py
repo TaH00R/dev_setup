@@ -36,6 +36,7 @@ class SettingsPage(QWidget):
         form = QFormLayout(appearance)
         self.theme = QComboBox()
         self.theme.addItems(("Light", "Dark"))
+        self.theme.setCurrentIndex(1)
         form.addRow("Theme", self.theme)
         self.debounce = QSpinBox()
         self.debounce.setRange(150, 1000)

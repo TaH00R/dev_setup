@@ -108,6 +108,23 @@ class PersistentDesktopTests(unittest.TestCase):
             constructor.assert_not_called()
         self.assertFalse(self.path.exists())
 
+    def test_new_and_ephemeral_windows_default_to_dark(self):
+        for persistent in (False, True):
+            with self.subTest(persistent=persistent):
+                window = self.open_window(persistent=persistent)
+                self.assertEqual(window.theme.currentText(), "Dark")
+                self.assertIn("#131c27", self.app.styleSheet())
+
+    def test_saved_light_preference_overrides_dark_default(self):
+        store = StateStore(self.path)
+        try:
+            store.save_settings(DesktopSettings(theme="light"))
+        finally:
+            store.close()
+        window = self.open_window()
+        self.assertEqual(window.theme.currentText(), "Light")
+        self.assertIn("#f3f5f7", self.app.styleSheet())
+
     def test_preferences_and_audit_survive_restart(self):
         window = self.open_window()
         window.theme.setCurrentIndex(1)
@@ -293,7 +310,7 @@ class PersistentDesktopTests(unittest.TestCase):
             original(store, settings)
 
         with mock.patch.object(StateStore, "save_settings", blocked):
-            window.theme.setCurrentIndex(1)
+            window.theme.setCurrentIndex(0)
             self.wait_for(entered.is_set)
             window.close()
             self.assertTrue(window.isVisible())
@@ -301,4 +318,4 @@ class PersistentDesktopTests(unittest.TestCase):
             self.wait_for(lambda: not window.state_controller.busy)
             self.wait_for(lambda: not window.isVisible())
         second = self.open_window()
-        self.assertEqual(second.theme.currentText(), "Dark")
+        self.assertEqual(second.theme.currentText(), "Light")

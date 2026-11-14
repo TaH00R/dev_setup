@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import QApplication
 
 
-def apply_theme(dark: bool = False) -> None:
+def apply_theme(dark: bool = True) -> None:
     application = QApplication.instance()
     if not isinstance(application, QApplication):
         return
