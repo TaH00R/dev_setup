@@ -8,6 +8,14 @@ Unknown fields are rejected at every level, including nested source, support,
 detection, dependency, version, and review records. Shell strings, executable
 hooks, installer scripts, and arbitrary command arrays are not schema fields.
 
+`CatalogService.revision` is a SHA-256 digest of the validated package dataclasses
+serialized as canonical JSON: packages sorted by stable ID, object keys sorted,
+compact separators and ISO dates. Mapping/tuple order remains significant.
+It is independent of file paths and Python hash randomization. Reviewed plans
+retain this content reference, and lifecycle schema 4 persists it without
+retaining catalog text. It is not a signature or remotely synchronized catalog
+revision; signed catalog distribution remains a later milestone.
+
 ## Field reference
 
 Required package fields: `id`, `name`, `summary`, `category`, `homepage`,

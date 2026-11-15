@@ -1,9 +1,11 @@
 """Durable state work stays off the GUI thread and has safe failure behavior."""
 
 import os
+import sqlite3
 import tempfile
 import threading
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest import mock
 
@@ -29,6 +31,21 @@ from services.records import AuditRecord
     QT_AVAILABLE, "Install requirements-gui.txt for state worker tests."
 )
 class StateWorkerTests(unittest.TestCase):
+    def test_sqlite_contention_wait_runs_on_worker_while_qt_remains_responsive(self):
+        self.load()
+        ticks = []
+        with closing(sqlite3.connect(self.path, isolation_level=None)) as blocker:
+            blocker.execute("BEGIN IMMEDIATE")
+            self.controller.save_settings(DesktopSettings("light", 700, False))
+            QTimer.singleShot(30, lambda: ticks.append(self.controller.busy))
+            QTimer.singleShot(120, blocker.rollback)
+            self.wait_for(lambda: not self.controller.busy)
+        self.assertEqual(ticks, [True])
+        self.assertFalse(self.controller.failure)
+        self.assertEqual(
+            self.controller.store.load_settings(), DesktopSettings("light", 700, False)
+        )
+
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])

@@ -99,6 +99,7 @@ class LifecycleRecord:
     started_at: datetime | None = None
     cancel_requested_at: datetime | None = None
     finished_at: datetime | None = None
+    catalog_revision: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -130,6 +131,11 @@ class LifecycleRecord:
             or re.fullmatch(r"[0-9a-f]{64}", self.expected_version) is None
         ):
             raise ValueError("Expected version evidence must be a SHA-256 digest.")
+        if self.catalog_revision is not None and (
+            not isinstance(self.catalog_revision, str)
+            or re.fullmatch(r"[0-9a-f]{64}", self.catalog_revision) is None
+        ):
+            raise ValueError("Catalog revision must be a SHA-256 digest or unknown.")
         if self.family not in {"package", "runtime"} or self.action not in {
             "install",
             "upgrade",
@@ -321,10 +327,12 @@ class LifecycleRecord:
         return json.dumps(data, sort_keys=True)
 
     @classmethod
-    def from_json(cls, raw: str) -> "LifecycleRecord":
+    def from_json(cls, raw: str, *, legacy: bool = False) -> "LifecycleRecord":
         if not isinstance(raw, str) or len(raw) > 8192:
             raise ValueError("Lifecycle payload exceeds its bound.")
         data = json.loads(raw)
+        if legacy and isinstance(data, dict) and "catalog_revision" not in data:
+            data["catalog_revision"] = None
         if not isinstance(data, dict) or set(data) != set(cls.__dataclass_fields__):
             raise ValueError("Lifecycle fields do not match the schema.")
         for key in (

@@ -1,5 +1,6 @@
 """Immutable service boundaries. Native versions are opaque, never semver guesses."""
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -42,8 +43,14 @@ class PreparedItem:
 class ReviewedPlan:
     plan: InstallPlan
     prepared: tuple[PreparedItem, ...]
+    catalog_revision: str | None = None
 
     def __post_init__(self) -> None:
+        if self.catalog_revision is not None and (
+            not isinstance(self.catalog_revision, str)
+            or re.fullmatch(r"[0-9a-f]{64}", self.catalog_revision) is None
+        ):
+            raise ValueError("Catalog revision must be a SHA-256 digest or unknown.")
         if len(self.prepared) != len(self.plan.items):
             raise ValueError("prepared records must match plan items")
         for item, prepared in zip(self.plan.items, self.prepared):

@@ -15,6 +15,9 @@ starts. Evidence includes:
 - Package/native/backend/source identity and hashed host identity.
 - Hashed review-time installed inventory and requested/candidate version.
   The existing service revalidates native inventory before dispatch.
+- A SHA-256 content reference to the reviewed package catalog, when known.
+  Schema 4 migrates older records with an unknown reference; runtime records
+  also use unknown. This does not archive catalogs or enable replay.
 - Approval, creation, execution-start, update, cancellation-request and finish
   timestamps, when known; an interruption does not invent a completion time.
 - Execution phase, known exit code, verification status and bounded detail codes
@@ -63,6 +66,8 @@ accept inspection/acknowledgement metadata without rewriting the execution
 outcome. Clear History retains entire executions with active or unresolved
 interrupted items, including verified predecessors needed to preserve partial
 outcomes. It removes fully completed or acknowledged executions.
+Schema 4 and the [database recovery hardening](database-recovery.md) preserve
+these rules while adding catalog references and stronger transaction boundaries.
 
 ## Startup and Queue recovery
 

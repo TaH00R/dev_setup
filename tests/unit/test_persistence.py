@@ -85,7 +85,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertNotIn("stderr", columns)
         self.assertNotIn("environment", columns)
 
-    def test_v1_history_migrates_to_v3_without_losing_records(self):
+    def test_v1_history_migrates_to_v4_without_losing_records(self):
         self.path.parent.mkdir()
         with closing(sqlite3.connect(self.path, isolation_level=None)) as database:
             database.execute(
@@ -100,7 +100,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(store.load_history(), (self.record(),))
         self.assertEqual(store.load_settings(), DesktopSettings())
         with closing(sqlite3.connect(self.path, isolation_level=None)) as database:
-            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(database.execute("PRAGMA user_version").fetchone()[0], 4)
 
     def test_failed_migration_rolls_back_schema_and_version(self):
         self.path.parent.mkdir()

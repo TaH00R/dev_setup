@@ -1,6 +1,9 @@
 """Pure curated browsing/search; availability and execution belong to adapters."""
 
-from dataclasses import dataclass
+import hashlib
+import json
+from dataclasses import asdict, dataclass, field
+from datetime import date
 
 from models.catalog import Package
 from models.platform import Platform
@@ -8,6 +11,12 @@ from models.specs import InstallSpec
 
 from .loader import validate_packages
 from .schema import CATEGORIES
+
+
+def _date_value(value: object) -> str:
+    if isinstance(value, date):
+        return value.isoformat()
+    raise TypeError("Catalog revision contains an unsupported value.")
 
 
 @dataclass(frozen=True)
@@ -20,6 +29,7 @@ class CatalogMatch:
 @dataclass(frozen=True)
 class CatalogService:
     packages: tuple[Package, ...]
+    revision: str = field(init=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.packages, tuple) or any(
@@ -27,6 +37,15 @@ class CatalogService:
         ):
             raise ValueError("catalog service requires an immutable tuple of packages")
         validate_packages(self.packages)
+        payload = json.dumps(
+            [asdict(package) for package in sorted(self.packages, key=lambda p: p.id)],
+            sort_keys=True,
+            separators=(",", ":"),
+            default=_date_value,
+        )
+        object.__setattr__(
+            self, "revision", hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        )
 
     @property
     def categories(self) -> tuple[str, ...]:

@@ -317,6 +317,7 @@ def package_run(
                 approved,
                 operation.created_at,
                 operation.updated_at,
+                catalog_revision=reviewed.catalog_revision,
             )
         )
     return LifecycleRun(tuple(records), store)

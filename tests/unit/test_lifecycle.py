@@ -27,6 +27,49 @@ from tests.fixtures.lifecycle import active_run
 
 
 class LifecycleTests(unittest.TestCase):
+    def sqlite_commit_failure(self, state):
+        connect = sqlite3.connect
+
+        class FailedCheckpoint(sqlite3.Connection):
+            def execute(self, sql, parameters=()):
+                cursor = super().execute(sql, parameters)
+                if (
+                    sql.startswith("INSERT INTO lifecycle")
+                    and json.loads(parameters[1])["state"] == state
+                ):
+                    self.fail_commit = True
+                return cursor
+
+            def commit(self):
+                if getattr(self, "fail_commit", False):
+                    raise sqlite3.OperationalError("disk full token=checkpoint-secret")
+                return super().commit()
+
+        return mock.patch(
+            "persistence.store.sqlite3.connect",
+            side_effect=lambda *args, **kwargs: connect(
+                *args, factory=FailedCheckpoint, **kwargs
+            ),
+        )
+
+    def test_sqlite_commit_failure_before_dispatch_prevents_native_mutation(self):
+        with self.sqlite_commit_failure("installing"):
+            report = self.execute()
+        self.assertEqual(report.operations[0].state, OperationState.FAILED)
+        self.assertFalse(self.fixture.mutations)
+        self.assertTrue(report.persistence_errors)
+        self.assertNotIn("checkpoint-secret", repr(report))
+
+    def test_sqlite_terminal_commit_failure_preserves_verified_native_result(self):
+        with self.sqlite_commit_failure("succeeded"):
+            report = self.execute()
+        self.assertEqual(report.operations[0].state, OperationState.SUCCEEDED)
+        self.assertEqual(report.operations[0].result.exit_code, 0)
+        self.assertTrue(report.persistence_errors)
+        self.assertNotIn("checkpoint-secret", repr(report))
+        self.assertEqual(self.store.load_lifecycle()[0].state, State.VERIFYING)
+        self.assertEqual(self.store.interrupt_active()[0].verification, "unknown")
+
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
@@ -62,6 +105,9 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(record.operation_id, report.operations[0].id)
         self.assertEqual(record.execution_id, report.execution_id)
         self.assertEqual(len(record.plan_identity), 64)
+        self.assertEqual(
+            record.catalog_revision, self.fixture.services.catalog.revision
+        )
         self.assertTrue(record.mutation_started)
         self.assertEqual(report.outcome, PlanOutcome.SUCCEEDED)
         self.assertEqual(LifecycleRecord.from_json(record.to_json()), record)
@@ -77,6 +123,8 @@ class LifecycleTests(unittest.TestCase):
             record.advance(State.INSTALLING)
         with self.assertRaises(StateError):
             self.store.save_lifecycle(replace(record, detail="native_changes_possible"))
+        with self.assertRaises(StateError):
+            self.store.save_lifecycle(replace(record, catalog_revision="0" * 64))
 
     def test_startup_does_no_inventory_or_mutation_until_explicit_inspection(self):
         active_run(self.fixture, self.store)

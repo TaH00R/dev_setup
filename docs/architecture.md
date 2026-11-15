@@ -99,6 +99,10 @@ interruption and inspection evidence from legacy per-item execution states and
 defines aggregate plan outcomes. `services/lifecycle.py` coordinates these
 checkpoints and read-only native recovery. Startup and Queue never replay a
 stored command; lifecycle rows contain no command strings or raw output.
+Schema 4 adds reviewed catalog content references. The SQLite store owns read
+snapshots, immediate write transactions, version/integrity checks and safe
+rollback/cleanup. GUI state saves and lifecycle workers share that store without
+sharing connections; see [database recovery](database-recovery.md).
 Release verification never executes a downloaded artifact; a build without a
 pinned release channel makes no update request.
 

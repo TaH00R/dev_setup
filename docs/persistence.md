@@ -64,22 +64,56 @@ transaction. Busy startup fails safely without changing those records.
 
 ## Schema upgrades and recovery
 
-The SQLite `user_version` is currently 3. Version 1 contains audit history; version
+The SQLite `user_version` is currently 4. Version 1 contains audit history; version
 2 adds the singleton settings table; version 3 adds validated lifecycle metadata.
-A new database creates all three tables. Migrations use
-an explicit transaction and preserve history. A failed migration rolls back both
-schema changes and the version number. A database from a newer version, an
+Version 4 adds a catalog revision reference to each lifecycle payload. Package
+plans carry a SHA-256 digest of the normalized reviewed catalog; older records
+and runtime records retain an explicit unknown (`null`) reference. Migration
+never assigns today's catalog to historical operations. It validates every old
+payload and its database key before retaining it in the new format. The digest
+is a content reference, not a signature, archived catalog or trust upgrade.
+
+A new database creates all three tables. Migrations acquire `BEGIN IMMEDIATE`
+**before** reading the schema version, so simultaneous openers cannot migrate
+using a stale version. The format conversion and version bump commit in the same
+transaction. A failed migration rolls back both
+schema/data changes and the version number. A database from a newer version, an
 unrecognized schema, or an existing unversioned database is refused without
 deleting its tables. There is no automatic destructive downgrade or reset.
 
-Connections are short lived and serialized per store. `close()` refuses future
-access; it does not delete data. SQLite connection and migration failures become
-safe `StateError` messages without raw paths or database exception details.
+Connections are short lived and serialized per store. Every read uses a snapshot;
+every write acquires an immediate transaction, rechecks the current schema, and
+commits only after the complete operation succeeds. A database upgraded by
+another instance is refused by an already-open store. Only explicit construction
+may create a database; a file removed during a session is never recreated by a
+later read/write. Startup performs SQLite's `quick_check` and refuses failed
+integrity checks without rebuilding, truncating or replacing the file.
+
+The default busy timeout remains three seconds (core callers/tests may choose
+zero through 30 seconds). Contention waits occur on background workers. SQLite
+serializes independent stores/processes; the per-store lock serializes local
+connections. Current bounded reads and serialized writes do not justify enabling
+WAL automatically. New stores keep SQLite's default rollback journal; existing
+durable journal modes, including WAL, are retained. Connections explicitly use
+`synchronous=FULL`. This does not replace the native-operation coordinator.
+
+All failed transaction paths, including validation errors and failed commits,
+attempt rollback and close. Cleanup failures produce fixed diagnostic codes,
+never raw exceptions or paths. `close()` refuses future access; it does not
+delete data. SQLite connection and migration failures become safe `StateError`
+messages. A failure to commit the pre-dispatch checkpoint prevents a native
+mutation. A failure to commit a verified terminal result preserves the actual
+session result, reports a separate persistence warning, and leaves the prior
+durable checkpoint for explicit recovery on reopening.
 
 For a backup or manual recovery, quit the desktop first, copy the database to a
-private location, and retain the original until recovery is verified. Do not open
+private location with any remaining journal/WAL sidecar files, and retain the
+original file set until recovery is verified. Do not delete journals to force an
+open or copy a live database file alone. Do not open
 a newer database with an older app expecting it to migrate backwards. Corrupt
 data should be investigated from the backup rather than overwritten silently.
+See [database recovery evidence](database-recovery.md) for tested failure cases
+and qualification limits.
 
 ## Event logs and support exports
 

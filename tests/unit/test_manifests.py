@@ -4,7 +4,6 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock
 
 from models.environment import (
     EnvironmentChoice,
@@ -86,8 +85,7 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("not included", presets[6].description)
 
     def test_cross_platform_unsupported_items_are_blocking(self):
-        catalog = Mock(spec=CatalogService)
-        catalog.get.return_value = None
+        catalog = CatalogService(())
         planner = Planner(
             catalog, Platform(OperatingSystem.MACOS, Architecture.ARM64), ()
         )
@@ -99,7 +97,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(result.reviewed.plan.items, ())
 
     def test_runtime_and_config_choices_never_execute_as_package_subset(self):
-        catalog = Mock(spec=CatalogService)
+        catalog = CatalogService(())
         planner = Planner(
             catalog, Platform(OperatingSystem.MACOS, Architecture.ARM64), ()
         )

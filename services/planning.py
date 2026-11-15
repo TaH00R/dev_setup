@@ -193,7 +193,9 @@ class Planner:
         # Cyclic/invalid graphs must never be represented as executable partial plans.
         if issues:
             return ReviewedPlan(
-                InstallPlan(uuid4().hex, self.host, (), tuple(issues)), ()
+                InstallPlan(uuid4().hex, self.host, (), tuple(issues)),
+                (),
+                self.catalog.revision,
             )
 
         def installed_package(package: Package) -> bool:
@@ -364,8 +366,12 @@ class Planner:
             # In particular, avoid PlanItem's topological invariant masking an
             # earlier failed dependency inspection with a constructor exception.
             return ReviewedPlan(
-                InstallPlan(uuid4().hex, self.host, (), tuple(issues)), ()
+                InstallPlan(uuid4().hex, self.host, (), tuple(issues)),
+                (),
+                self.catalog.revision,
             )
         return ReviewedPlan(
-            InstallPlan(uuid4().hex, self.host, tuple(items)), tuple(prepared)
+            InstallPlan(uuid4().hex, self.host, tuple(items)),
+            tuple(prepared),
+            self.catalog.revision,
         )
