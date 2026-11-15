@@ -214,6 +214,12 @@ operations completed during startup, retaining each operation once. A database
 failure shows a persistence warning while preserving the actual operation result
 and session history. Process output stays in memory.
 
+Package mutations currently await native qualification. Explore and Installed
+show disabled install/update/remove actions with the reason; read-only search,
+inventory and verification remain available when their backend is present.
+Presets and prepared plans use the same planning/execution policy. See the
+[support matrix](support-matrix.md) and [native qualification](native-qualification.md).
+
 The [application event stream](application-events.md) supplies Queue state,
 History, Dashboard activity and status notices from the same verified package
 changes. Verified mutations mark displayed inventory stale and invalidate old

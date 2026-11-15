@@ -5,6 +5,13 @@ change the legacy CLI, install software at import time, or add dependencies.
 `models/inventory.py` contains native inventory/review evidence; service review,
 consent, and output-free audit records live in `services/records.py`.
 
+Milestone 16 adds a mutation policy at both planning and execution boundaries.
+The normal desktop requires reviewed native qualification evidence and currently
+disables all package mutations. The existing experimental core constructors
+remain available for controlled callers and fake tests. Explicit consent alone
+does not bypass a production executor's policy. See
+[native qualification](native-qualification.md) for the pending native gates.
+
 ## Enabled native inspection
 
 | Inspector | Inventory | Candidate/source review | Mutation review |

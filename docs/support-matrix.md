@@ -5,11 +5,40 @@ Native installation/elevation has not been tested on disposable Linux/macOS
 machines. Metadata matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
 
-The [desktop workflow](desktop.md) now uses APT/Homebrew inspection services.
+The [desktop workflow](desktop.md) uses APT/Homebrew inspection services.
 Other backends remain command-contract support until their native readers are
 implemented. Windows currently supports catalog browsing in the desktop.
 
-## Backend capabilities
+## Application workflow support (milestone 16, in progress)
+
+No backend/source/platform scope has reviewed native mutation qualification
+evidence yet. Adapter presence and successful command construction do not grant
+qualification. The normal desktop now disables install/update/remove, including
+presets and execution of a previously prepared plan. Search, compatible inventory
+and read-only verification remain available. The reason is shown in package
+details and disabled-action tooltips.
+
+| Scope | Command construction | Discovery / inventory readers | Verified operation service | Production mutations |
+| --- | --- | --- | --- | --- |
+| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Implemented with mocked evidence | Disabled; native qualification pending |
+| Homebrew core/cask, reviewed macOS ARM64 mappings | Implemented | Implemented | Implemented with mocked evidence | Disabled; native qualification pending for each source/action |
+| WinGet, Scoop, pacman, DNF, zypper, apk, Flatpak | Implemented where declared below | Live discovery where provider exists; no application inventory inspector | Not enabled | Disabled |
+| Chocolatey, MacPorts, Snap | Deferred | Deferred | Deferred | Disabled |
+
+`DesktopServices` requires qualification by default and supplies the same policy
+to planning and execution. Direct core `Planner`/`OperationService` callers retain
+their experimental APIs for compatibility; callers outside the normal desktop
+must supply an appropriate mutation policy. The explicit
+`require_native_qualification=False` composition is used by fake fixtures and the
+guarded disposable qualification runner. It is not a user preference or proof of
+support. No downloaded report or smoke pass automatically enables an action.
+
+The opt-in [native qualification procedure](native-qualification.md) prepares
+repeatable hosted Ubuntu/container and macOS smoke jobs. They have **not** been
+run from this workspace. Real upgrade, elevation, in-flight cancellation and cask
+qualification remain open. Milestone 16 remains unchecked.
+
+## Adapter command capabilities (not production enablement)
 
 | Backend | Host selection | Version / search / inventory / show | Install / remove | Individual upgrade | Reviewed package sources |
 | --- | --- | --- | --- | --- | --- |

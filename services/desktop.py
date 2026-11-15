@@ -17,6 +17,7 @@ from .inventory import Inspector, InventoryService
 from .operations import OperationService
 from .planning import Planner
 from .records import PackageRequest
+from .support import WorkflowSupport, pending_native_qualification, workflow_support
 
 
 @dataclass(frozen=True)
@@ -60,16 +61,36 @@ class DesktopServices:
         inspectors: tuple[Inspector, ...],
         runner: CommandRunner,
         discovery: DiscoveryService | None = None,
+        *,
+        require_native_qualification: bool = True,
     ) -> None:
         self.catalog = catalog
         self.host = host
         self.adapters = adapters
         self.inspectors = inspectors
+        self.require_native_qualification = require_native_qualification
+        policy = pending_native_qualification if require_native_qualification else None
         self.inventory = InventoryService(inspectors, runner)
-        self.planner = Planner(catalog, host, inspectors)
+        self.planner = Planner(catalog, host, inspectors, mutation_policy=policy)
         self.events = EventBus()
-        self.operations = OperationService(inspectors, runner, events=self.events)
+        self.operations = OperationService(
+            inspectors, runner, events=self.events, mutation_policy=policy
+        )
         self.discovery = discovery or DiscoveryService(catalog, host)
+
+    def workflow_support(
+        self, spec: InstallSpec, action: OperationAction
+    ) -> WorkflowSupport:
+        adapter = next((a for a in self.adapters if a.id == spec.backend), None)
+        return workflow_support(
+            spec.backend,
+            action,
+            inspector=any(i.adapter.id == spec.backend for i in self.inspectors),
+            command=adapter is not None
+            and BackendAction(action.value) in adapter.capabilities.actions
+            if action != OperationAction.VERIFY
+            else False,
+        )
 
     def action_reason(self, spec: InstallSpec, action: OperationAction) -> str | None:
         inspector = next(
@@ -86,11 +107,17 @@ class DesktopServices:
             not in inspector.adapter.capabilities.actions
         ):
             return "The selected package manager does not support this action."
+        if self.require_native_qualification:
+            return pending_native_qualification(spec, action)
         return None
 
     def version_selection(self, spec: InstallSpec, action: OperationAction) -> bool:
         if action == OperationAction.VERIFY:
             return True
+        if self.require_native_qualification and pending_native_qualification(
+            spec, action
+        ):
+            return False
         adapter = next(
             (i.adapter for i in self.inspectors if i.adapter.id == spec.backend), None
         )

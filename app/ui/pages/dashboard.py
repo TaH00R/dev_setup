@@ -47,6 +47,12 @@ class DashboardPage(QWidget):
         form.addRow("Native installed packages", self.inventory_count)
         self.backend_status = label("Not checked")
         form.addRow("Package managers", self.backend_status)
+        form.addRow(
+            "Package changes",
+            label(
+                "Awaiting native qualification; search and inventory remain available."
+            ),
+        )
         layout.addWidget(stats)
         self.dashboard_notes = label(
             "Inventory is read-only. No package is installed or upgraded during refresh.",

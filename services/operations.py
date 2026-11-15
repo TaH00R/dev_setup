@@ -30,6 +30,7 @@ from .records import (
     PlanConsent,
     ReviewedPlan,
 )
+from .support import MutationPolicy
 
 StateObserver = Callable[[ProgressEvent], None]
 LogObserver = Callable[[str, OutputSnapshot], None]
@@ -42,11 +43,13 @@ class OperationService:
         runner: CommandRunner,
         *,
         events: EventBus | None = None,
+        mutation_policy: MutationPolicy | None = None,
     ) -> None:
         self.inspectors = {i.adapter.id: i for i in inspectors}
         if len(self.inspectors) != len(inspectors):
             raise ValueError("operation inspectors must be unique")
         self.runner = runner
+        self.mutation_policy = mutation_policy
         self.events = events if events is not None else EventBus()
         self.coordinator = NativeCoordinator()
         self.lifecycle_store: LifecycleStore | None = None
@@ -191,6 +194,13 @@ class OperationService:
                     )
                 else:
                     advance(OperationState.RESOLVING)
+                    reason = (
+                        self.mutation_policy(item.spec, item.action)
+                        if self.mutation_policy
+                        else None
+                    )
+                    if reason:
+                        raise AdapterError(ErrorCode.UNSUPPORTED_OPERATION, reason)
                     inspector = self.inspectors.get(item.spec.backend)
                     if (
                         inspector is None

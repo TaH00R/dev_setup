@@ -30,6 +30,7 @@ from models.operations import OperationState, ProgressEvent
 from models.package import Dependency
 from models.specs import PrivilegeRequirement
 from services.catalog.service import CatalogService
+from services.desktop import DesktopServices
 from services.planning import Planner
 from services.records import PackageRequest, PlanConsent
 from system.commands import OutputSnapshot
@@ -44,6 +45,34 @@ from tests.integration.test_process_failures import alive
     QT_AVAILABLE, "Install requirements-gui.txt to run desktop acceptance tests."
 )
 class DesktopTests(unittest.TestCase):
+    def test_production_qualification_gate_disables_mutations_but_keeps_verify(self):
+        base = self.fixture.services
+        services = DesktopServices(
+            base.catalog, base.host, base.adapters, base.inspectors, self.fixture.runner
+        )
+        window = MainWindow(services, auto_refresh=False)
+        self.addCleanup(window.close)
+        window.search.setText("git")
+        window.explore_presenter._search()
+        index = next(
+            index for index, package in enumerate(window.matches) if package.id == "git"
+        )
+        window.package_list.setCurrentRow(index)
+        window._action_state()
+        self.assertFalse(window.review_button.isEnabled())
+        self.assertIn("qualification", window.action_note.text())
+        self.assertIn("qualification", window.package_details.toPlainText())
+        self.fixture.install()
+        window.controller.refresh()
+        self.wait_for(
+            lambda: not window.controller.busy and window.snapshot is not None
+        )
+        window.installed_table.selectRow(0)
+        self.assertFalse(window.remove_button.isEnabled())
+        self.assertIn("qualification", window.remove_button.toolTip())
+        self.assertTrue(window.verify_button.isEnabled())
+        self.assertFalse(self.fixture.mutations)
+
     def test_verified_events_update_shared_views_and_unsubscribe_on_close(self):
         self.refresh()
         self.assertFalse(self.window.inventory_dirty)

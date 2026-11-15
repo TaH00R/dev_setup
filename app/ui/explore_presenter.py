@@ -214,6 +214,7 @@ class ExplorePresenter(QObject):
                     f"Source: {spec.source.name} ({spec.source.kind.value}; {spec.source.trust.value})",
                     f"Source URL: {spec.source.url or 'Not listed'}",
                     f"Native ID: {spec.native_id}",
+                    f"Workflow support: {self.view.services.workflow_support(spec, action).reason}",
                     f"Platform: {spec.support.os.value}; architectures: {', '.join(a.value for a in spec.support.architectures)}",
                     f"Privileges: {spec.privilege.value}",
                     f"Estimated size: {str(spec.estimated_size_bytes) + ' bytes' if spec.estimated_size_bytes is not None else 'Unknown'}",

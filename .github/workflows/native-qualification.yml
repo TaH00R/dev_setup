@@ -1,0 +1,51 @@
+name: Disposable native smoke (qualification pending)
+
+on:
+  workflow_dispatch:
+    inputs:
+      approve_native_changes:
+        description: 'Approve install/remove and reviewed dependency effects on disposable hosted runners only'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  apt:
+    if: ${{ inputs.approve_native_changes }}
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    timeout-minutes: 20
+    steps:
+      - name: Explicit disposable image preparation
+        run: |
+          apt-get update
+          apt-get install --yes python3 ca-certificates git
+      - uses: actions/checkout@v4
+      - name: Exercise APT plans and verification
+        run: python3 -m scripts.qualify_native --backend apt --approve-native-changes --output native-apt.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-apt-smoke-pending
+          path: native-apt.json
+          if-no-files-found: warn
+  homebrew:
+    if: ${{ inputs.approve_native_changes }}
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Exercise Homebrew core plans and verification
+        run: python -m scripts.qualify_native --backend homebrew --approve-native-changes --output native-homebrew.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-homebrew-smoke-pending
+          path: native-homebrew.json
+          if-no-files-found: warn

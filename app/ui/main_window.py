@@ -434,8 +434,17 @@ class MainWindow(QMainWindow):
             row is not None and row.mapping is not None and row.package_id is not None
         )
         self.installed_view.setEnabled(valid)
-        self.verify_button.setEnabled(valid and not self._operation_busy())
-        self.remove_button.setEnabled(valid and not self._operation_busy())
+        for button, action in (
+            (self.verify_button, OperationAction.VERIFY),
+            (self.remove_button, OperationAction.UNINSTALL),
+        ):
+            reason = (
+                self.services.action_reason(row.mapping, action)
+                if valid and row and row.mapping
+                else "Select a mapped package."
+            )
+            button.setEnabled(valid and reason is None and not self._operation_busy())
+            button.setToolTip(reason or "Review the selected action.")
         index = self.update_table.currentRow()
         self.review_update.setEnabled(
             self.update_report is not None

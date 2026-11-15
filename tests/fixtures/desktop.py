@@ -41,6 +41,7 @@ class DesktopFixture:
             (self.adapter,),
             (self,),
             self.runner,
+            require_native_qualification=False,  # Fake native operations only.
         )
 
     def install(self, native_id="git", version="1.0", source="homebrew-core"):

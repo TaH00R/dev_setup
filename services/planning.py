@@ -19,6 +19,7 @@ from system.identity import IdentityError, bind
 from .coordination import access
 from .inventory import Inspector
 from .records import PackageRequest, PreparedItem, ReviewedPlan
+from .support import MutationPolicy
 
 
 def backend_action(action: OperationAction) -> BackendAction:
@@ -27,9 +28,15 @@ def backend_action(action: OperationAction) -> BackendAction:
 
 class Planner:
     def __init__(
-        self, catalog: CatalogService, host: Platform, inspectors: tuple[Inspector, ...]
+        self,
+        catalog: CatalogService,
+        host: Platform,
+        inspectors: tuple[Inspector, ...],
+        *,
+        mutation_policy: MutationPolicy | None = None,
     ) -> None:
         self.catalog = catalog
+        self.mutation_policy = mutation_policy
         self.host = host
         self.coordinator = NativeCoordinator()
         self.inspectors = {i.adapter.id: i for i in inspectors}
@@ -154,6 +161,11 @@ class Planner:
                 )
                 return
             spec = matches[0]
+            if self.mutation_policy is not None:
+                reason = self.mutation_policy(spec, request.action)
+                if reason:
+                    issue(ErrorCode.UNSUPPORTED_OPERATION, reason)
+                    return
             if request.version is not None:
                 if spec.version is not None and spec.version != request.version:
                     issue(
