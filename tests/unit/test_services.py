@@ -9,6 +9,13 @@ from unittest import mock
 
 from models.diagnostics import DiagnosticCode
 from models.errors import ErrorCode, OperationError
+from models.events import (
+    OperationFailed,
+    OperationFinished,
+    PackageInstalled,
+    PackageRemoved,
+    PackageUpgraded,
+)
 from models.inventory import Detection, InstalledPackage, Inventory, NativeReview
 from models.operations import OperationState as State
 from models.package import Dependency, PackageVersion
@@ -56,6 +63,100 @@ class FakeInspector:
 
 
 class ServiceTests(unittest.TestCase):
+    def event_execution(self, reviewed, **kwargs):
+        service = OperationService((self.inspector,), self.runner)
+        received = []
+        service.events.subscribe(received.append)
+        report = service.execute(
+            reviewed, consent=PlanConsent(reviewed, True, True), **kwargs
+        )
+        return report, received
+
+    def test_package_events_follow_verification_and_retain_correlation(self):
+        plan = self.preview()
+        service = OperationService((self.inspector,), self.runner)
+        received = []
+        observed_versions = []
+
+        def capture(delivery):
+            if isinstance(delivery.event, PackageInstalled):
+                observed_versions.append(self.inspector.installed["alpha"].versions)
+            received.append(delivery)
+
+        service.events.subscribe(capture)
+        report = service.execute(plan, consent=PlanConsent(plan, True, True))
+        events = [delivery.event for delivery in received]
+        self.assertEqual(observed_versions, [("2.0",)])
+        self.assertEqual(
+            [delivery.sequence for delivery in received],
+            list(range(1, len(events) + 1)),
+        )
+        self.assertEqual({event.correlation_id for event in events}, {plan.plan.id})
+        self.assertEqual(
+            {event.execution_id for event in events}, {report.execution_id}
+        )
+        self.assertEqual(
+            {event.operation_id for event in events}, {report.operations[0].id}
+        )
+        installed = next(
+            i for i, event in enumerate(events) if isinstance(event, PackageInstalled)
+        )
+        self.assertIn(State.VERIFYING, [event.state for event in events[:installed]])
+        self.assertEqual(events[installed].version, report.audit[0].version)
+        self.assertNotIn("safe native output", repr(events))
+
+    def test_exit_zero_without_verification_emits_only_failure(self):
+        self.mutate = False
+        report, deliveries = self.event_execution(self.preview())
+        events = [delivery.event for delivery in deliveries]
+        self.assertEqual(report.operations[0].result.exit_code, 0)
+        self.assertFalse(any(isinstance(event, PackageInstalled) for event in events))
+        failure = next(event for event in events if isinstance(event, OperationFailed))
+        self.assertEqual(failure.error_code, ErrorCode.VERIFICATION_FAILED)
+
+    def test_removed_upgraded_and_verify_events_have_distinct_semantics(self):
+        self.install("alpha", "1.0")
+        for action, expected in (
+            (Action.UPGRADE, PackageUpgraded),
+            (Action.VERIFY, OperationFinished),
+            (Action.UNINSTALL, PackageRemoved),
+        ):
+            with self.subTest(action=action):
+                plan = self.preview(PackageRequest("alpha", action))
+                report, deliveries = self.event_execution(plan)
+                self.assertEqual(report.operations[0].state, State.SUCCEEDED)
+                terminal = [
+                    d.event
+                    for d in deliveries
+                    if isinstance(d.event, OperationFinished)
+                ]
+                self.assertEqual(len(terminal), 1)
+                self.assertIs(type(terminal[0]), expected)
+
+    def test_event_failure_cannot_change_native_success_and_skip_is_not_install(self):
+        service = OperationService((self.inspector,), self.runner)
+        service.events.subscribe(
+            lambda _: (_ for _ in ()).throw(RuntimeError("secret"))
+        )
+        plan = self.preview()
+        report = service.execute(plan, consent=PlanConsent(plan, True, True))
+        self.assertEqual(report.operations[0].state, State.SUCCEEDED)
+        report, deliveries = self.event_execution(self.preview())
+        self.assertEqual(report.operations[0].state, State.SKIPPED)
+        self.assertFalse(any(isinstance(d.event, PackageInstalled) for d in deliveries))
+
+    def test_repeated_plan_execution_has_fresh_execution_and_operation_ids(self):
+        plan = self.preview()
+        self.mutate = False
+        first, deliveries1 = self.event_execution(plan)
+        self.mutate = True
+        second, deliveries2 = self.event_execution(plan)
+        self.assertNotEqual(first.execution_id, second.execution_id)
+        self.assertNotEqual(first.operations[0].id, second.operations[0].id)
+        self.assertEqual(
+            {d.event.correlation_id for d in deliveries1 + deliveries2}, {plan.plan.id}
+        )
+
     def test_dependency_exact_version_merges_independently_of_request_order(self):
         alpha, beta, *rest = self.packages
         self.install("beta", "2.0")

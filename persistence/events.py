@@ -37,12 +37,21 @@ class SafeEventLog:
         self._closed = False
 
     def record(
-        self, event: str, *, code: str | None = None, operation_id: str | None = None
+        self,
+        event: str,
+        *,
+        code: str | None = None,
+        operation_id: str | None = None,
+        correlation_id: str | None = None,
+        execution_id: str | None = None,
+        sequence: int | None = None,
     ) -> None:
         for name, value in (
             ("event", event),
             ("code", code),
             ("operation_id", operation_id),
+            ("correlation_id", correlation_id),
+            ("execution_id", execution_id),
         ):
             if value is not None:
                 identifier(value, name)
@@ -50,11 +59,22 @@ class SafeEventLog:
                     raise ValueError("event metadata exceeds its bound")
         if self._closed:
             raise StateError("The event log is closed.")
-        payload = {"timestamp": utc_now().isoformat(), "event": event}
+        payload: dict[str, str | int] = {
+            "timestamp": utc_now().isoformat(),
+            "event": event,
+        }
         if code is not None:
             payload["code"] = code
         if operation_id is not None:
             payload["operation_id"] = operation_id
+        if correlation_id is not None:
+            payload["correlation_id"] = correlation_id
+        if execution_id is not None:
+            payload["execution_id"] = execution_id
+        if sequence is not None:
+            if type(sequence) is not int or sequence < 1:
+                raise ValueError("Event sequence must be positive.")
+            payload["sequence"] = sequence
         record = logging.LogRecord(
             "dev_setup.events",
             logging.INFO,

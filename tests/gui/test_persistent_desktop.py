@@ -41,6 +41,28 @@ from tests.fixtures.lifecycle import active_run
 
 @unittest.skipUnless(QT_AVAILABLE, "Install requirements-gui.txt for desktop tests.")
 class PersistentDesktopTests(unittest.TestCase):
+    def test_verified_application_event_is_logged_with_ids_without_output(self):
+        window = self.open_window()
+        plan = self.fixture.services.planner.preview((PackageRequest("git"),))
+        window.controller.execute(plan, PlanConsent(plan, True, True))
+        self.wait_for(
+            lambda: not window.controller.busy and len(window.controller.history) == 1
+        )
+        window.state_controller.flush()
+        lines = [
+            json.loads(line)
+            for line in (self.root / "events.log").read_text().splitlines()
+        ]
+        events = [line for line in lines if line["event"] == "packageinstalled"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["correlation_id"], plan.plan.id)
+        self.assertEqual(
+            events[0]["operation_id"], window.controller.history[0].operation_id
+        )
+        self.assertTrue(events[0]["execution_id"])
+        self.assertNotIn("safe native output", json.dumps(lines))
+        self.assertEqual(len(window.state_controller.store.load_history()), 1)
+
     def test_internal_worker_error_is_inspectable_and_exportable_without_exception_text(
         self,
     ):

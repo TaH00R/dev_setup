@@ -83,10 +83,15 @@ data should be investigated from the backup rather than overwritten silently.
 
 ## Event logs and support exports
 
-`SafeEventLog` records UTC timestamps and validated event/code/operation IDs only.
+`SafeEventLog` records UTC timestamps and validated event/code/operation IDs,
+plus optional correlation/execution IDs and a positive event sequence.
 It rotates at 64 KiB and retains one backup. It has no free-text message or raw
 output parameter. Logging is best effort; log-file errors cannot change native
 operation results or print raw filesystem exceptions.
+Terminal [application events](application-events.md) use the desktop's existing
+serialized state worker. Optional log work yields queue capacity to state/audit
+writes. Audit rows still come from the authoritative execution report; the event
+bus and its best-effort log are not durable recovery or replay mechanisms.
 
 `services.diagnostics.collect_diagnostics()` builds a bounded report containing
 app/Python version, normalized OS/architecture/distribution and backend

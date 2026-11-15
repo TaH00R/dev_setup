@@ -83,6 +83,10 @@ exit codes, and verification results. Unsupported operations and partial
 failures must remain visible; cancellation does not imply rollback.
 
 Qt workers keep blocking tasks off the GUI thread and relay events safely.
+Typed metadata in `models/events.py` flows through the Qt-independent
+`services/events.py` bus and bounded `app/ui/events.py` signal bridge. Package
+success events follow native verification; raw output uses its separate channel.
+See [application events](application-events.md) for ordering, ownership and limits.
 Persistent settings and sanitized history belong behind core persistence
 interfaces, not widget code. Runtime managers form a separate adapter family
 because project-local runtimes differ from system application installation.

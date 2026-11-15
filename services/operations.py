@@ -20,6 +20,7 @@ from system.identity import IdentityError, bind
 from system.runner import CommandRunner
 
 from .coordination import access
+from .events import EventBus, publish_operation
 from .inventory import Inspector
 from .lifecycle import LifecycleStore, MemoryLifecycleStore, package_run
 from .planning import backend_action
@@ -36,12 +37,17 @@ LogObserver = Callable[[str, OutputSnapshot], None]
 
 class OperationService:
     def __init__(
-        self, inspectors: tuple[Inspector, ...], runner: CommandRunner
+        self,
+        inspectors: tuple[Inspector, ...],
+        runner: CommandRunner,
+        *,
+        events: EventBus | None = None,
     ) -> None:
         self.inspectors = {i.adapter.id: i for i in inspectors}
         if len(self.inspectors) != len(inspectors):
             raise ValueError("operation inspectors must be unique")
         self.runner = runner
+        self.events = events if events is not None else EventBus()
         self.coordinator = NativeCoordinator()
         self.lifecycle_store: LifecycleStore | None = None
         self.session_store = MemoryLifecycleStore()
@@ -97,6 +103,12 @@ class OperationService:
                 operation,
                 dependency_failed,
                 exit_code=command_result.exit_code if command_result else None,
+            )
+            publish_operation(
+                self.events,
+                operation,
+                reviewed.plan.id,
+                lifecycle.records[operation.id].execution_id,
             )
             if observe:
                 try:
@@ -391,6 +403,13 @@ class OperationService:
                     operation.result.finished_at,
                     operation.result.exit_code,
                 )
+            )
+            publish_operation(
+                self.events,
+                operation,
+                reviewed.plan.id,
+                lifecycle.records[operation.id].execution_id,
+                audit[-1],
             )
         return ExecutionReport(
             tuple(operations),

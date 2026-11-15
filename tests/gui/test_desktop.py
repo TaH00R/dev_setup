@@ -31,7 +31,7 @@ from models.package import Dependency
 from models.specs import PrivilegeRequirement
 from services.catalog.service import CatalogService
 from services.planning import Planner
-from services.records import PackageRequest
+from services.records import PackageRequest, PlanConsent
 from system.commands import OutputSnapshot
 from system.coordination import NativeCoordinator
 from system.runner import CommandRunner
@@ -44,6 +44,43 @@ from tests.integration.test_process_failures import alive
     QT_AVAILABLE, "Install requirements-gui.txt to run desktop acceptance tests."
 )
 class DesktopTests(unittest.TestCase):
+    def test_verified_events_update_shared_views_and_unsubscribe_on_close(self):
+        self.refresh()
+        self.assertFalse(self.window.inventory_dirty)
+        plan = self.fixture.services.planner.preview((PackageRequest("git"),))
+        self.window.controller.execute(plan, PlanConsent(plan, True, True))
+        self.wait_for(
+            lambda: not self.window.controller.busy and self.window.inventory_dirty
+        )
+        self.assertEqual(self.window.history_table.rowCount(), 1)
+        self.assertEqual(len(self.window.controller.history), 1)
+        self.assertIn("git", self.window.activity.text())
+        self.assertIn("Verified package changes", self.window.dashboard_notes.text())
+        self.assertIn("refresh inventory", self.window.installed_note.text())
+        self.assertEqual(self.window.queue_table.item(0, 1).text(), "succeeded")
+        self.window._check_updates()
+        self.assertIn("Refresh inventory", self.window.status.text())
+        self.refresh()
+        self.assertFalse(self.window.inventory_dirty)
+        self.assertEqual(self.window.installed_table.rowCount(), 1)
+        self.window.close()
+        self.assertEqual(self.fixture.services.events.subscriber_count, 0)
+
+    def test_unverified_native_exit_emits_failure_without_verified_change_notice(self):
+        self.fixture.mutate = False
+        self.refresh()
+        plan = self.fixture.services.planner.preview((PackageRequest("git"),))
+        self.window.controller.execute(plan, PlanConsent(plan, True, True))
+        self.wait_for(
+            lambda: (
+                not self.window.controller.busy
+                and len(self.window.controller.history) == 1
+            )
+        )
+        self.assertFalse(self.window.inventory_dirty)
+        self.assertEqual(self.window.controller.history[0].state, "failed")
+        self.assertEqual(self.window.queue_table.item(0, 1).text(), "failed")
+
     def test_close_cancels_real_owned_python_tree_before_destroying_window(self):
         root = Path(self.directory.name)
         marker = root / "owned-child.pid"

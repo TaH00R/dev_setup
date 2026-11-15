@@ -12,6 +12,7 @@ from system.runner import CommandRunner
 
 from .catalog.service import CatalogService
 from .discovery import DiscoveryService
+from .events import EventBus
 from .inventory import Inspector, InventoryService
 from .operations import OperationService
 from .planning import Planner
@@ -66,7 +67,8 @@ class DesktopServices:
         self.inspectors = inspectors
         self.inventory = InventoryService(inspectors, runner)
         self.planner = Planner(catalog, host, inspectors)
-        self.operations = OperationService(inspectors, runner)
+        self.events = EventBus()
+        self.operations = OperationService(inspectors, runner, events=self.events)
         self.discovery = discovery or DiscoveryService(catalog, host)
 
     def action_reason(self, spec: InstallSpec, action: OperationAction) -> str | None:

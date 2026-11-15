@@ -214,6 +214,13 @@ operations completed during startup, retaining each operation once. A database
 failure shows a persistence warning while preserving the actual operation result
 and session history. Process output stays in memory.
 
+The [application event stream](application-events.md) supplies Queue state,
+History, Dashboard activity and status notices from the same verified package
+changes. Verified mutations mark displayed inventory stale and invalidate old
+update candidates; refresh inventory before checking updates. The Qt bridge
+keeps pending metadata bounded and reports omitted live events. Final execution
+reports retain full results. Closing the window releases its subscription.
+
 Clearing saved history requires an explicit Yes in a dialog whose default is No.
 The current view clears only after the durable delete succeeds. Installed tools
 are unaffected. Window close waits for queued database writes, discovery and

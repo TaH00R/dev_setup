@@ -120,6 +120,7 @@ class OperationPresenter(QObject):
 
     @Slot(object)
     def _completed(self, report: ExecutionReport) -> None:
+        self.view.event_bridge.flush()
         self.view.recovery.add_records(report.lifecycle)
         self.view._merge_history(report.audit)
         if self.view.state_path is not None and report.audit:

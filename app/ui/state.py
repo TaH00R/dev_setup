@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication, QObject, QThread, Signal, Slot
 
 from models.diagnostics import DiagnosticCode, DiagnosticComponent
+from models.events import EventDelivery, OperationFinished
 from models.lifecycle import LifecycleRecord
 from persistence.events import SafeEventLog
 from persistence.store import DesktopSettings, StateError, StateStore
@@ -175,6 +176,37 @@ class StateController(QObject):
 
     def save_settings(self, settings: DesktopSettings) -> bool:
         return self._enqueue("settings", lambda: self._store().save_settings(settings))
+
+    def record_application(self, delivery: EventDelivery) -> bool:
+        """Optional metadata logging uses the existing serialized worker queue."""
+        event = delivery.event
+        if self.event_log is None or not isinstance(event, OperationFinished):
+            return False
+        if self.failure or len(self._pending) >= 60:
+            record_diagnostic(
+                DiagnosticCode.EVENT_LOG_FAILED, DiagnosticComponent.STATE
+            )
+            return False
+
+        def write() -> None:
+            if self.event_log is not None:
+                try:
+                    self.event_log.record(
+                        type(event).__name__.lower(),
+                        code=event.error_code.value
+                        if event.error_code
+                        else event.state.value,
+                        operation_id=event.operation_id,
+                        correlation_id=event.correlation_id,
+                        execution_id=event.execution_id,
+                        sequence=delivery.sequence,
+                    )
+                except Exception:
+                    record_diagnostic(
+                        DiagnosticCode.EVENT_LOG_FAILED, DiagnosticComponent.STATE
+                    )
+
+        return self._enqueue("application-event", write)
 
     def append_audit(self, records: tuple[AuditRecord, ...]) -> bool:
         return self._enqueue("audit", lambda: self._store().append_audit(records))

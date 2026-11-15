@@ -13,6 +13,13 @@ from PySide6.QtWidgets import (
 from models.catalog import Package
 from models.discovery import LivePackage
 from models.errors import ErrorCode
+from models.events import (
+    EventDelivery,
+    OperationFinished,
+    PackageInstalled,
+    PackageRemoved,
+    PackageUpgraded,
+)
 from models.operations import OperationState, ProgressEvent
 from models.planning import OperationAction
 from services.desktop import (
@@ -22,10 +29,11 @@ from services.desktop import (
     UpdateReport,
 )
 from services.lifecycle import UnavailableLifecycleStore
-from services.records import PackageRequest
+from services.records import AuditRecord, PackageRequest
 
 from .components import fill_table, scroll_page
 from .environments import EnvironmentPages
+from .events import EventBridge
 from .explore_presenter import ExplorePresenter
 from .navigation import PAGE_NAMES, DesktopShell
 from .operation_presenter import OperationPresenter
@@ -93,6 +101,8 @@ class MainWindow(QMainWindow):
         self.state_controller.error.connect(self._state_error)
         self.state_controller.busy_changed.connect(self._state_busy)
         self.controller = Controller(services, self)
+        self.event_bridge = EventBridge(services.events, self)
+        self.inventory_dirty = False
         self.search_controller = SearchController(services.discovery, self)
         self.snapshot: DesktopSnapshot | None = None
         self.update_report: UpdateReport | None = None
@@ -242,7 +252,8 @@ class MainWindow(QMainWindow):
         self.controller.updates_ready.connect(self._updates_ready)
         self.controller.plan_ready.connect(self._review)
         self.controller.execution_ready.connect(self._completed)
-        self.controller.progress.connect(self._event)
+        self.event_bridge.delivered.connect(self._application_event)
+        self.event_bridge.overflow.connect(self._event_overflow)
         self.controller.output.connect(self._output)
         self.controller.error.connect(self._error)
         self.search_controller.ready.connect(self._search_ready)
@@ -267,6 +278,58 @@ class MainWindow(QMainWindow):
             self.controller.busy
             or self.environment.controller.busy
             or self.clearing_history
+        )
+
+    @Slot(object)
+    def _application_event(self, delivery: EventDelivery) -> None:
+        event = delivery.event
+        if isinstance(event, OperationFinished):
+            record = AuditRecord(
+                event.operation_id,
+                event.package_id,
+                event.action.value,
+                event.backend,
+                event.source_id,
+                event.version,
+                event.state.value,
+                event.approved_at,
+                event.timestamp,
+                event.exit_code,
+            )
+            self._merge_history((record,))
+            self._history_rows()
+            self.state_controller.record_application(delivery)
+            if isinstance(event, (PackageInstalled, PackageRemoved, PackageUpgraded)):
+                self.inventory_dirty = True
+                self.installed_note.setText(
+                    "Verified package changes; refresh inventory to see the current installation."
+                )
+                self.dashboard_notes.setText(
+                    "Verified package changes; displayed inventory needs a refresh."
+                )
+                self.update_report = None
+                self.update_table.setRowCount(0)
+                self.update_note.setText(
+                    "Package state changed. Refresh inventory before checking updates."
+                )
+            self.status.setText(
+                f"{event.package_id}: {event.action.value} {event.state.value}."
+            )
+        else:
+            self._event(
+                ProgressEvent(
+                    event.operation_id,
+                    event.package_id,
+                    event.state,
+                    event.state.value.replace("_", " "),
+                )
+            )
+
+    @Slot(int)
+    def _event_overflow(self, dropped: int) -> None:
+        self.inventory_dirty = True
+        self.installed_note.setText(
+            "Some live events were omitted. Refresh inventory; final results remain in History and Queue."
         )
 
     @Slot(bool)
@@ -301,6 +364,7 @@ class MainWindow(QMainWindow):
     @Slot(object)
     def _snapshot(self, snapshot: DesktopSnapshot) -> None:
         self.snapshot = snapshot
+        self.inventory_dirty = False
         self.support.availability = snapshot.backends
         self.update_report = None
         self.update_table.setRowCount(0)
@@ -401,7 +465,7 @@ class MainWindow(QMainWindow):
             )
 
     def _check_updates(self) -> None:
-        if self.snapshot is None:
+        if self.snapshot is None or self.inventory_dirty:
             self.status.setText("Refresh inventory before checking for updates.")
         else:
             self.controller.updates(self.snapshot)
@@ -469,6 +533,7 @@ class MainWindow(QMainWindow):
             self.support.controller.cancel()
             event.ignore()
         else:
+            self.event_bridge.close()
             self.state_controller.close()
             event.accept()
 

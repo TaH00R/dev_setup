@@ -229,3 +229,30 @@ class PersistenceTests(unittest.TestCase):
         self.assertLessEqual(path.stat().st_size, 65536)
         self.assertTrue(path.with_name("events.log.1").exists())
         self.assertNotIn("do-not-log", path.read_text(encoding="utf-8"))
+
+    def test_application_log_retains_bounded_correlation_without_raw_payloads(self):
+        path = Path(self.directory.name) / "events.log"
+        log = SafeEventLog(path)
+        self.addCleanup(log.close)
+        log.record(
+            "packageinstalled",
+            code="succeeded",
+            operation_id="operation-1",
+            correlation_id="plan-1",
+            execution_id="execution-1",
+            sequence=7,
+        )
+        value = json.loads(path.read_text().strip())
+        self.assertEqual(value["correlation_id"], "plan-1")
+        self.assertEqual(value["execution_id"], "execution-1")
+        self.assertEqual(value["sequence"], 7)
+        for options in (
+            {"correlation_id": "secret/path"},
+            {"execution_id": "x" * 129},
+            {"sequence": True},
+            {"sequence": 0},
+        ):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                log.record("operationfailed", **options)
+        with self.assertRaises(TypeError):
+            log.record("operationfailed", stdout="secret")

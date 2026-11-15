@@ -169,7 +169,13 @@ class Controller(QObject):
             self.plan_ready.emit(value)
         elif kind == "execute":
             if isinstance(value, ExecutionReport):
-                self.history.extend(value.audit)
+                # The event stream may already have delivered these terminal rows.
+                merged = {row.operation_id: row for row in self.history}
+                merged.update((row.operation_id, row) for row in value.audit)
+                self.history.clear()
+                self.history.extend(
+                    sorted(merged.values(), key=lambda row: row.finished_at)
+                )
             self.execution_ready.emit(value)
         elif kind == "recovery":
             self.recovery_ready.emit(value)
