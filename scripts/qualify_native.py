@@ -1,23 +1,28 @@
-"""Opt-in smoke evidence on disposable hosted CI only; never ordinary test discovery."""
+"""Opt-in smoke evidence on disposable hosts; never ordinary test discovery."""
 
 import argparse
 import json
 import os
 import platform
 import re
+import shutil
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from threading import Event
 
 from models.errors import ErrorCode
 from models.operations import OperationState
+from models.package import PackageVersion
 from models.planning import OperationAction, utc_now
 from models.platform import Architecture, OperatingSystem, Platform
-from package_managers.base import AdapterError
+from package_managers.base import AdapterError, BackendAction
+from package_managers.inspection import APTInspector
 from services.catalog.loader import load_catalog
 from services.catalog.service import CatalogService
 from services.desktop import DesktopServices
 from services.records import PackageRequest, PlanConsent, ReviewedPlan
+from system.commands import Command
 from system.platform import detect_platform
 from system.runner import CommandRunner
 
@@ -31,13 +36,14 @@ def disposable_guard(
     root: bool,
     approved: bool,
 ) -> None:
-    if (
-        not approved
-        or environment.get("GITHUB_ACTIONS") != "true"
-        or environment.get("RUNNER_ENVIRONMENT") != "github-hosted"
-    ):
+    hosted = (
+        environment.get("GITHUB_ACTIONS") == "true"
+        and environment.get("RUNNER_ENVIRONMENT") == "github-hosted"
+    )
+    local_container = environment.get("DEV_SETUP_DISPOSABLE_CONTAINER") == "1"
+    if not approved:
         raise ValueError(
-            "Native smoke tests require explicit approval on a disposable GitHub-hosted runner."
+            "Native smoke tests require explicit approval on a disposable host."
         )
     if backend == "apt":
         distro = host.distribution
@@ -47,6 +53,8 @@ def disposable_guard(
             and (distro.id, distro.version) == ("ubuntu", "24.04")
             and container
             and root
+            and host.architecture == Architecture.X86_64
+            and (hosted or local_container)
         ):
             return
     elif (
@@ -54,6 +62,7 @@ def disposable_guard(
         and host.os == OperatingSystem.MACOS
         and host.architecture == Architecture.ARM64
         and not root
+        and hosted
     ):
         return
     raise ValueError("This host does not match the disposable qualification scope.")
@@ -71,7 +80,11 @@ def manager_version(backend: str, output: str) -> str:
 
 
 def exercise(
-    services: DesktopServices, package_id: str, checks: dict[str, str]
+    services: DesktopServices,
+    package_id: str,
+    checks: dict[str, str],
+    *,
+    baseline_version: PackageVersion | None = None,
 ) -> None:
     """Use real application plans/consent/verification, not direct native mutation calls."""
     package = services.catalog.get(package_id)
@@ -89,7 +102,15 @@ def exercise(
 
     def preview(action: OperationAction) -> ReviewedPlan:
         plan = services.planner.preview(
-            (PackageRequest(package_id, action, spec.backend, spec.source.id),)
+            (
+                PackageRequest(
+                    package_id,
+                    action,
+                    spec.backend,
+                    spec.source.id,
+                    baseline_version if action == OperationAction.INSTALL else None,
+                ),
+            )
         )
         if not plan.plan.ready:
             raise ValueError("Native plan did not pass review.")
@@ -150,10 +171,42 @@ def exercise(
     checks["install_verify_refresh"] = "passed"
     checks["phase"] = "upgrade_review"
     upgrade = preview(OperationAction.UPGRADE)
-    # Latest -> latest is a skip, never evidence of a real version upgrade.
-    checks["real_version_upgrade"] = "not_tested"
-    if not all(item.skip_reason for item in upgrade.plan.items):
-        raise ValueError("Candidate changed during the smoke run; review a fresh run.")
+    if baseline_version is None:
+        # Latest -> latest is a skip, never evidence of a real version upgrade.
+        checks["real_version_upgrade"] = "not_tested"
+        if not all(item.skip_reason for item in upgrade.plan.items):
+            raise ValueError(
+                "Candidate changed during the smoke run; review a fresh run."
+            )
+    else:
+        target = (
+            upgrade.prepared[0].review.version if upgrade.prepared[0].review else None
+        )
+        if (
+            target is None
+            or target == baseline_version.value
+            or any(item.skip_reason for item in upgrade.plan.items)
+        ):
+            raise ValueError("A real version upgrade is unavailable.")
+        if re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+~:_-]{0,255}", target) is None:
+            raise ValueError("Upgrade target is not bounded version metadata.")
+        checks["phase"] = "real_version_upgrade"
+        execute(OperationAction.UPGRADE)
+        changed = inspector.inventory().get(spec.native_id)
+        refreshed = services.refresh(Event())
+        if (
+            changed is None
+            or target not in changed.versions
+            or baseline_version.value in changed.versions
+            or not any(
+                row.package_id == package_id and target in row.versions
+                for row in refreshed.installed
+            )
+        ):
+            raise ValueError("Upgraded inventory did not verify the version change.")
+        checks["upgrade_from"] = baseline_version.value
+        checks["upgrade_to"] = target
+        checks["real_version_upgrade"] = "passed"
     checks["phase"] = "remove_and_stale_plan"
     stale = preview(OperationAction.UNINSTALL)
     execute(OperationAction.UNINSTALL)
@@ -178,14 +231,88 @@ def exercise(
     checks["phase"] = "complete"
 
 
+def apt_upgrade_baseline(
+    inspector: APTInspector, services: DesktopServices
+) -> PackageVersion:
+    """Select an older available official Git version using native Debian ordering."""
+    package = services.catalog.get("git")
+    if package is None:
+        raise ValueError("Reviewed Git mapping is absent.")
+    mappings = [
+        s
+        for s in package.install_specs
+        if s.backend == "apt" and s.support.supports(services.host)
+    ]
+    if len(mappings) != 1:
+        raise ValueError("APT upgrade requires one exact reviewed mapping.")
+    spec = mappings[0]
+    current = inspector.review(spec, OperationAction.INSTALL).version
+    if current is None:
+        raise ValueError("Current native candidate is unknown.")
+    paths = dict(inspector.adapter.availability().executables)
+    output = inspector.read(
+        inspector.adapter.request(
+            (paths["apt-cache"], "madison", "--", spec.native_id),
+            BackendAction.SHOW,
+            spec,
+            environment=(("LC_ALL", "C"),),
+        ),
+        None,
+    )
+    dpkg = shutil.which("dpkg")
+    if dpkg is None or not Path(dpkg).is_absolute():
+        raise ValueError("Native Debian version comparison is unavailable.")
+    for row in output.splitlines():
+        fields = [field.strip() for field in row.split("|")]
+        if (
+            len(fields) != 3
+            or fields[0] != spec.native_id
+            or re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+~:_-]{0,255}", fields[1]) is None
+        ):
+            raise ValueError("Native version listing contains unsupported metadata.")
+        version = fields[1]
+        compared = inspector.runner.run(
+            Command(
+                (dpkg, "--compare-versions", version, "lt", current),
+                "Compare native Debian versions for disposable qualification",
+                services.host.os,
+                "qualification",
+            )
+        )
+        if (
+            compared.output_truncated
+            or compared.exit_code not in (0, 1)
+            or compared.error
+            and not (
+                compared.exit_code == 1
+                and compared.error.code == ErrorCode.COMMAND_FAILED
+            )
+        ):
+            raise ValueError("Native Debian version comparison failed.")
+        if compared.exit_code == 0:
+            # Provenance validation is still performed by the actual inspector.
+            inspector.review(
+                replace(spec, version=PackageVersion(version)), OperationAction.INSTALL
+            )
+            return PackageVersion(version)
+    raise ValueError("No older reviewed native version is currently available.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Disposable CI smoke only. Approval includes install/remove and reviewed native dependency effects for the fixed test package."
+        description="Disposable smoke only. Approval includes install/remove and reviewed native dependency effects for the fixed test package."
     )
     parser.add_argument("--backend", choices=("apt", "homebrew"), required=True)
     parser.add_argument("--approve-native-changes", action="store_true")
+    parser.add_argument(
+        "--apt-upgrade",
+        action="store_true",
+        help="Test real older-to-current Git upgrade from reviewed Ubuntu repositories.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
+    if args.apt_upgrade and args.backend != "apt":
+        parser.error("--apt-upgrade requires --backend apt")
     host = detect_platform()
     try:
         disposable_guard(
@@ -198,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     except ValueError:
         print(
-            "Refused: native smoke requires explicit approval and the disposable hosted scope."
+            "Refused: native smoke requires explicit approval and a matching disposable scope."
         )
         return 2
     checks: dict[str, str] = {"phase": "setup"}
@@ -214,10 +341,21 @@ def main(argv: list[str] | None = None) -> int:
         else platform.mac_ver()[0],
         "recorded_at": utc_now().isoformat(),
         "checks": checks,
+        "profile": "apt-upgrade" if args.apt_upgrade else "smoke",
     }
-    revision = os.environ.get("GITHUB_SHA", "")
+    revision = os.environ.get(
+        "DEV_SETUP_SOURCE_COMMIT", os.environ.get("GITHUB_SHA", "")
+    )
     report["source_commit"] = (
         revision if re.fullmatch(r"[0-9a-f]{40,64}", revision) else None
+    )
+    tree_digest = os.environ.get("DEV_SETUP_SOURCE_DIGEST", "")
+    report["source_tree_digest"] = (
+        tree_digest if re.fullmatch(r"[0-9a-f]{64}", tree_digest) else None
+    )
+    image_digest = os.environ.get("DEV_SETUP_IMAGE_DIGEST", "")
+    report["container_image_digest"] = (
+        image_digest if re.fullmatch(r"sha256:[0-9a-f]{64}", image_digest) else None
     )
     try:
         # Refuse overwrite before starting any native work.
@@ -240,7 +378,13 @@ def main(argv: list[str] | None = None) -> int:
                 report["manager_version"] = manager_version(
                     args.backend, version.stdout
                 )
-                package_id = "cmake" if args.backend == "apt" else "ripgrep"
+                package_id = (
+                    "git"
+                    if args.apt_upgrade
+                    else "cmake"
+                    if args.backend == "apt"
+                    else "ripgrep"
+                )
                 package = next(p for p in load_catalog() if p.id == package_id)
                 services = DesktopServices(
                     CatalogService((package,)),
@@ -252,7 +396,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 report["package_id"] = package_id
                 report["catalog_revision"] = services.catalog.revision
-                exercise(services, package_id, checks)
+                baseline = (
+                    apt_upgrade_baseline(inspector, services)
+                    if args.apt_upgrade and isinstance(inspector, APTInspector)
+                    else None
+                )
+                exercise(services, package_id, checks, baseline_version=baseline)
                 report["status"] = "smoke_passed_qualification_pending"
             except Exception as error:
                 report["error_code"] = (

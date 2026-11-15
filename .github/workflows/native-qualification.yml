@@ -16,21 +16,27 @@ jobs:
   apt:
     if: ${{ inputs.approve_native_changes }}
     runs-on: ubuntu-24.04
-    container: ubuntu:24.04
+    container: ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
     timeout-minutes: 20
     steps:
       - name: Explicit disposable image preparation
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           apt-get update
           apt-get install --yes python3 ca-certificates git
       - uses: actions/checkout@v4
       - name: Exercise APT plans and verification
         run: python3 -m scripts.qualify_native --backend apt --approve-native-changes --output native-apt.json
+      - name: Exercise a real older-to-current APT Git upgrade
+        run: python3 -m scripts.qualify_native --backend apt --apt-upgrade --approve-native-changes --output native-apt-upgrade.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: native-apt-smoke-pending
-          path: native-apt.json
+          path: |
+            native-apt.json
+            native-apt-upgrade.json
           if-no-files-found: warn
   homebrew:
     if: ${{ inputs.approve_native_changes }}
