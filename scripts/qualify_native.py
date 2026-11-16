@@ -321,10 +321,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Test altered origin rejection using a private native cache; no native mutations.",
     )
+    profiles.add_argument(
+        "--apt-sources",
+        action="store_true",
+        help="Test changed repository URL rejection using private source manifests and cache; no native mutations.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     if (
-        args.apt_upgrade or args.apt_failures or args.apt_origins
+        args.apt_upgrade or args.apt_failures or args.apt_origins or args.apt_sources
     ) and args.backend != "apt":
         parser.error("APT-only profiles require --backend apt")
     host = detect_platform()
@@ -355,7 +360,9 @@ def main(argv: list[str] | None = None) -> int:
         else platform.mac_ver()[0],
         "recorded_at": utc_now().isoformat(),
         "checks": checks,
-        "profile": "apt-origins"
+        "profile": "apt-sources"
+        if args.apt_sources
+        else "apt-origins"
         if args.apt_origins
         else "apt-failures"
         if args.apt_failures
@@ -431,7 +438,23 @@ def main(argv: list[str] | None = None) -> int:
                     if args.apt_upgrade and isinstance(inspector, APTInspector)
                     else None
                 )
-                if args.apt_origins:
+                if args.apt_sources:
+                    from scripts.apt_origin_checks import (
+                        copy_lists,
+                        copy_sources,
+                        exercise_apt_sources,
+                    )
+
+                    with tempfile.TemporaryDirectory(
+                        prefix="dev-setup-native-sources-"
+                    ) as source_directory:
+                        private = Path(source_directory)
+                        copy_lists(Path("/var/lib/apt/lists"), private / "lists")
+                        copy_sources(Path("/etc/apt"), private / "sources")
+                        exercise_apt_sources(
+                            services, checks, private / "lists", private / "sources"
+                        )
+                elif args.apt_origins:
                     from scripts.apt_origin_checks import (
                         copy_lists,
                         exercise_apt_origins,

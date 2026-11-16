@@ -5,11 +5,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from models.errors import ErrorCode, OperationError
 from models.planning import utc_now
 from scripts.apt_origin_checks import (
     PrivateListsRunner,
     copy_lists,
+    copy_sources,
     exercise_apt_origins,
+    exercise_apt_sources,
 )
 from system.commands import CommandResult
 
@@ -29,11 +32,34 @@ class APTOriginProfileTests(unittest.TestCase):
         self.lists = self.root / "lists"
         copy_lists(self.original, self.lists)
         self.break_policy = False
+        self.ignore_sources = False
+        self.native_source_error = False
+        self.sources = None
         self.fixture.runner.run.side_effect = self.run_read
 
     def run_read(self, command, **kwargs):
         self.assertFalse(command.mutates)
         argv = command.argv
+        if (
+            self.sources
+            and not self.ignore_sources
+            and b"dev-setup.invalid"
+            in (self.sources / "sources.list.d" / "ubuntu.sources").read_bytes()
+            and Path(argv[0]).name in {"apt-cache", "apt-get"}
+        ):
+            now = utc_now()
+            return CommandResult(
+                command.preview(),
+                now,
+                now,
+                0 if argv[-1] == "policy" else 100,
+                "Package files:\n 100 /var/lib/dpkg/status\n     release a=now\nPinned packages:\n",
+                error=OperationError(
+                    ErrorCode.COMMAND_FAILED, "Native target release is unavailable."
+                )
+                if self.native_source_error and argv[-1] != "policy"
+                else None,
+            )
         content = (self.lists / "archive_InRelease").read_bytes()
         origin = "DevSetupUnreviewed" if b"DevSetupUnreviewed" in content else "Ubuntu"
         if Path(argv[0]).name == "dpkg-query":
@@ -116,3 +142,75 @@ class APTOriginProfileTests(unittest.TestCase):
         with mock.patch.object(Path, "is_symlink", return_value=True):
             with self.assertRaises(ValueError):
                 copy_lists(self.original, self.root / "rejected-copy")
+
+    def source_fixture(self):
+        source = self.root / "source-original"
+        source.mkdir()
+        parts = source / "sources.list.d"
+        parts.mkdir()
+        content = b"Types: deb\nURIs: http://archive.ubuntu.com/ubuntu\nSuites: noble\nComponents: main\nSigned-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n"
+        (parts / "ubuntu.sources").write_bytes(content)
+        (parts / "ignored.conf").write_bytes(b"Not a source manifest")
+        (source / "auth.conf").write_bytes(b"Synthetic credential; never copied")
+        (source / "sources.list").write_bytes(b"# Legacy source manifest\n")
+        self.sources = self.root / "source-copy"
+        copy_sources(source, self.sources)
+        return source, content
+
+    def test_repository_url_change_blocks_plans_and_restores_originals(self):
+        source, content = self.source_fixture()
+        checks = {}
+        exercise_apt_sources(self.fixture.services, checks, self.lists, self.sources)
+        self.assertEqual(checks["phase"], "complete")
+        self.assertEqual(checks["fresh_plan_changed_repository"], "rejected")
+        self.assertEqual(
+            checks["reviewed_plan_changed_repository"], "rejected_before_dispatch"
+        )
+        self.assertEqual(checks["restored_source_review"], "passed")
+        self.assertEqual(
+            (self.sources / "sources.list.d" / "ubuntu.sources").read_bytes(), content
+        )
+        self.assertEqual(
+            (source / "sources.list.d" / "ubuntu.sources").read_bytes(), content
+        )
+        self.assertFalse((self.sources / "auth.conf").exists())
+        self.assertFalse((self.sources / "sources.list.d" / "ignored.conf").exists())
+        commands = [call.args[0] for call in self.fixture.runner.run.call_args_list]
+        apt_commands = [
+            c for c in commands if Path(c.argv[0]).name in {"apt-get", "apt-cache"}
+        ]
+        self.assertTrue(apt_commands)
+        self.assertTrue(
+            all(
+                f"Dir::Etc::sourcelist={self.sources / 'sources.list'}" in c.argv
+                and f"Dir::Etc::sourceparts={self.sources / 'sources.list.d'}" in c.argv
+                for c in apt_commands
+            )
+        )
+
+    def test_source_change_requires_native_witness_and_restores_after_failure(self):
+        _, content = self.source_fixture()
+        self.ignore_sources = True
+        checks = {}
+        with self.assertRaises(ValueError):
+            exercise_apt_sources(
+                self.fixture.services, checks, self.lists, self.sources
+            )
+        self.assertNotIn("configured_repository_change", checks)
+        self.assertEqual(
+            (self.sources / "sources.list.d" / "ubuntu.sources").read_bytes(), content
+        )
+
+    def test_native_command_rejection_is_preserved_without_mutation_dispatch(self):
+        self.source_fixture()
+        self.native_source_error = True
+        checks = {}
+        exercise_apt_sources(self.fixture.services, checks, self.lists, self.sources)
+        self.assertEqual(checks["source_rejection_code"], "command_failed")
+        self.assertEqual(checks["native_mutation_dispatch"], "none")
+
+    def test_source_copy_refuses_links(self):
+        source, _ = self.source_fixture()
+        with mock.patch.object(Path, "is_symlink", return_value=True):
+            with self.assertRaises(ValueError):
+                copy_sources(source, self.root / "rejected-source-copy")
