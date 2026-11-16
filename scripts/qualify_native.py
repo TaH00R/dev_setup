@@ -301,7 +301,7 @@ def apt_upgrade_baseline(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Disposable smoke only. Approval includes install/remove and reviewed native dependency effects for the fixed test package."
+        description="Disposable smoke only. Approval includes the selected profile's native package changes or private signed-index refreshes."
     )
     parser.add_argument("--backend", choices=("apt", "homebrew"), required=True)
     parser.add_argument("--approve-native-changes", action="store_true")
@@ -331,6 +331,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Test stale approval after private key content/reference changes; no native mutations.",
     )
+    profiles.add_argument(
+        "--apt-auth",
+        action="store_true",
+        help="Test fresh private index authentication with current and removed Ubuntu keys; downloads metadata only.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     if (
@@ -339,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
         or args.apt_origins
         or args.apt_sources
         or args.apt_keys
+        or args.apt_auth
     ) and args.backend != "apt":
         parser.error("APT-only profiles require --backend apt")
     host = detect_platform()
@@ -369,7 +375,9 @@ def main(argv: list[str] | None = None) -> int:
         else platform.mac_ver()[0],
         "recorded_at": utc_now().isoformat(),
         "checks": checks,
-        "profile": "apt-keys"
+        "profile": "apt-auth"
+        if args.apt_auth
+        else "apt-keys"
         if args.apt_keys
         else "apt-sources"
         if args.apt_sources
@@ -449,7 +457,14 @@ def main(argv: list[str] | None = None) -> int:
                     if args.apt_upgrade and isinstance(inspector, APTInspector)
                     else None
                 )
-                if args.apt_keys:
+                if args.apt_auth:
+                    from scripts.apt_auth_checks import exercise_apt_auth
+
+                    with tempfile.TemporaryDirectory(
+                        prefix="dev-setup-native-auth-"
+                    ) as auth_directory:
+                        exercise_apt_auth(services, checks, Path(auth_directory))
+                elif args.apt_keys:
                     from scripts.apt_key_checks import exercise_apt_keys
                     from scripts.apt_origin_checks import copy_lists, copy_sources
 

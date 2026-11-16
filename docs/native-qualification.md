@@ -3,7 +3,7 @@
 Application support reporting and the production qualification gate are
 implemented. Native APT/Homebrew qualification is **not complete**. After starting
 the installed Docker Desktop, real APT smoke, upgrade, controlled failure,
-cached-origin, repository URL and signing-key drift checks
+cached-origin, repository URL, signing-key drift and fresh-index authentication checks
 passed in disposable Ubuntu 24.04 x86_64 containers. Package changes were confined
 to those containers, with no host mounts or ports, and they were removed after
 testing. Existing personal WSL distributions were not used. No macOS
@@ -30,7 +30,8 @@ permission to enable production actions.
 
 `.github/workflows/native-qualification.yml` is separate from release publishing.
 It has only a manual `workflow_dispatch` trigger and requires affirmative approval
-of native changes, including selected-package removal and reviewed dependencies.
+of native changes, including selected-package removal, reviewed dependencies and
+private signed-index refreshes in the authentication profile.
 It does not run on pushes, pull requests or ordinary unit-test discovery.
 
 - APT: a digest-pinned Ubuntu 24.04 job container on an `ubuntu-24.04` hosted runner.
@@ -56,6 +57,9 @@ It does not run on pushes, pull requests or ordinary unit-test discovery.
   The `--apt-keys` profile copies the Ubuntu archive public key and rewrites only
   private manifests to reference the copy. It tests key content/reference drift
   against unchanged cached candidate metadata, refusing all mutation dispatch.
+  The `--apt-auth` profile downloads fresh noble/main amd64 indexes into isolated
+  caches over HTTPS. It tests current-key acceptance and removed-key rejection,
+  with no package installation or reuse of existing cached lists.
 - Homebrew: a `macos-15` hosted ARM64 runner with its existing Homebrew. It selects
   the reviewed ripgrep core formula; no manager/tap bootstrap is provided. Hosted
   images contain preinstalled software, so this is not clean-machine evidence.
@@ -214,6 +218,36 @@ The latter now rejects during source identity inspection with
 `verification_failed`; earlier evidence retained the native `command_failed`.
 All reports remain unqualified, and production mutation gates stay disabled.
 
+## Retained APT fresh-index authentication evidence (2026-11-16)
+
+The [authentication report](evidence/apt-ubuntu24.04-x86_64-auth-2026-11-16.json)
+records a root Ubuntu 24.04 x86_64/APT 2.8.4 run on the pinned image. Two exclusive,
+initially empty private scopes use the same official HTTPS noble/main amd64
+source and different public keyrings from the image's installed Ubuntu keyring
+package. No original sources, keys or cached indexes are edited.
+
+- With `ubuntu-archive-keyring.gpg`, native `apt-get --error-on=any update`
+  authenticated fresh indexes. The application planner then produced a review
+  for CMake `3.28.3-1build7` using those indexes.
+- With only `ubuntu-archive-removed-keys.gpg`, APT exited 100 with `NO_PUBKEY`.
+  No usable package index was retained and application planning was blocked.
+  Network failures, truncated output and a zero exit cannot count as this check.
+
+Each scope supplies an `APT_CONFIG` bootstrap that redirects configuration
+fragments, main config, sources, trust directories, state, caches and logs into
+that new temporary directory. The DPKG status database is read only. This avoids
+loading the container's update hooks and prevents fallback to its trusted keys
+or existing lists. Public fixtures are readable by APT's normal sandbox user.
+The native executable, bootstrap, manifest and key identities are bound before
+explicit command approval. No TLS or signature bypass option is provided.
+
+Only this opt-in qualification profile refreshes private indexes. Normal
+application search/planning still uses existing caches and never refreshes them
+silently. No package mutation runs in this profile. Temporary scopes and the
+container were removed after testing. This evidence covers current-key acceptance
+and removed-key rejection during refresh; payload signature tampering and
+independent authentication of previously cached metadata remain open.
+
 ## Repeat the local APT profiles
 
 From a reviewed committed checkout with Docker's Linux engine running, the
@@ -248,6 +282,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'APT source checks failed; inspect their bounded report.' }
     docker exec --env DEV_SETUP_SOURCE_COMMIT=$qualificationCommit --workdir /work $qualificationContainer python3 -m scripts.qualify_native --backend apt --apt-keys --approve-native-changes --output /tmp/native-apt-keys.json
     if ($LASTEXITCODE -ne 0) { throw 'APT key checks failed; inspect their bounded report.' }
+    docker exec --env DEV_SETUP_SOURCE_COMMIT=$qualificationCommit --workdir /work $qualificationContainer python3 -m scripts.qualify_native --backend apt --apt-auth --approve-native-changes --output /tmp/native-apt-auth.json
+    if ($LASTEXITCODE -ne 0) { throw 'APT authentication checks failed; inspect their bounded report.' }
 } finally {
     try {
         docker cp "${qualificationContainer}:/tmp/native-apt.json" build/native-apt.json
@@ -256,6 +292,7 @@ try {
         docker cp "${qualificationContainer}:/tmp/native-apt-origins.json" build/native-apt-origins.json
         docker cp "${qualificationContainer}:/tmp/native-apt-sources.json" build/native-apt-sources.json
         docker cp "${qualificationContainer}:/tmp/native-apt-keys.json" build/native-apt-keys.json
+        docker cp "${qualificationContainer}:/tmp/native-apt-auth.json" build/native-apt-auth.json
     } finally {
         docker stop $qualificationContainer
     }
@@ -283,8 +320,10 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
 5. Inspect source/version identity, altered-source/candidate rejection and
    verification failure on those hosts. APT now has controlled exit-zero
    verification-failure and private cached-origin rejection evidence. Repository
-   URL and signing-key drift against an existing cache also passed. Signature
-   authentication, newly downloaded source metadata and Homebrew cases remain open.
+   URL and signing-key drift against an existing cache also passed. Fresh signed
+   indexes were accepted with the current key and rejected with removed keys.
+   Payload signature tampering, cached-metadata authentication and Homebrew cases
+   remain open.
    Resolve any real parser/output limits.
 6. Review evidence per backend, source, OS/release, architecture, native version
    and action before adding any production enablement. Update the support matrix
@@ -296,23 +335,26 @@ documented in the [Homebrew manual](https://docs.brew.sh/Manpage) and
 [Ubuntu noble APT manual](https://manpages.ubuntu.com/manpages/noble/man8/apt-get.8.html).
 The reviewed [APT source format](https://manpages.ubuntu.com/manpages/noble/man5/sources.list.5.html)
 defines explicit keyring paths and the two source-manifest formats.
+The [APT authentication manual](https://manpages.ubuntu.com/manpages/noble/man8/apt-secure.8.html)
+describes release authentication; [APT configuration order](https://manpages.ubuntu.com/manpages/noble/man5/apt.conf.5.html)
+documents the early `APT_CONFIG` bootstrap used for private refreshes.
 These references describe environments and commands; they are not project test
 evidence. No dependency or release-publishing change is introduced.
 
 ## Local validation (2026-11-16)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **562 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **568 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (173 files), mypy passed (103 source files), and catalog
+Ruff lint/format passed (175 files), mypy passed (104 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **141 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **147 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
-These core tests use synthetic mutations; they complement the six real APT profiles.
+These core tests use synthetic mutations; they complement the seven real APT profiles.
 Qt and the full Linux dependency matrix were not exercised by this subset.

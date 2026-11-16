@@ -1,0 +1,32 @@
+{
+  "architecture": "x86_64",
+  "backend": "apt",
+  "catalog_revision": "c44b89b76a54f15b58ff6cdf5c4db1f98851f84d8cc416ebcf198174db5d8107",
+  "checks": {
+    "authenticated_plan": "ready",
+    "cache_reuse": "none_fresh_scopes",
+    "candidate_version": "3.28.3-1build7",
+    "current_key_refresh": "passed_fresh_signed_indexes",
+    "native_id": "cmake",
+    "package_mutation_dispatch": "none",
+    "payload_signature_tampering": "not_tested",
+    "phase": "complete",
+    "rejected_cache_package_indexes": "none",
+    "removed_key_exit_code": "100",
+    "removed_key_refresh": "rejected_no_pubkey",
+    "source_id": "ubuntu-noble",
+    "unauthenticated_plan": "blocked"
+  },
+  "container_image_digest": "sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5",
+  "manager_version": "2.8.4",
+  "os": "linux",
+  "os_version": "24.04",
+  "package_id": "cmake",
+  "profile": "apt-auth",
+  "qualified": false,
+  "recorded_at": "2026-11-16T15:26:23.785600+00:00",
+  "schema_version": 1,
+  "source_commit": "c67c9771a724b3b2d52c0083a6db9bcee328c97e",
+  "source_tree_digest": "a0affbc8e5d52aef307de12724784a251152bec98360c0c2d2ed33663bba45db",
+  "status": "smoke_passed_qualification_pending"
+}

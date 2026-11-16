@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       approve_native_changes:
-        description: 'Approve install/remove and reviewed dependency effects on disposable hosted runners only'
+        description: 'Approve package changes and private signed-index refreshes on disposable hosted runners only'
         type: boolean
         required: true
         default: false
@@ -40,6 +40,8 @@ jobs:
         run: python3 -m scripts.qualify_native --backend apt --apt-sources --approve-native-changes --output native-apt-sources.json
       - name: Reject stale approval after private signing-key changes
         run: python3 -m scripts.qualify_native --backend apt --apt-keys --approve-native-changes --output native-apt-keys.json
+      - name: Authenticate fresh private indexes and reject removed signing keys
+        run: python3 -m scripts.qualify_native --backend apt --apt-auth --approve-native-changes --output native-apt-auth.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -51,6 +53,7 @@ jobs:
             native-apt-origins.json
             native-apt-sources.json
             native-apt-keys.json
+            native-apt-auth.json
           if-no-files-found: warn
   homebrew:
     if: ${{ inputs.approve_native_changes }}

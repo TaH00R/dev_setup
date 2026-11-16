@@ -22,11 +22,16 @@ class PrivateListsRunner(CommandRunner):
     """Redirect APT reads to private lists; refuse every mutation dispatch."""
 
     def __init__(
-        self, delegate: CommandRunner, lists: Path, sources: Path | None = None
+        self,
+        delegate: CommandRunner,
+        lists: Path,
+        sources: Path | None = None,
+        bootstrap: Path | None = None,
     ) -> None:
         super().__init__()
         self.delegate, self.lists = delegate, lists
         self.sources = sources
+        self.bootstrap = bootstrap
         self.mutation_attempts = 0
 
     def run(
@@ -41,6 +46,16 @@ class PrivateListsRunner(CommandRunner):
             self.mutation_attempts += 1
             raise ValueError("Origin qualification never dispatches native mutations.")
         if Path(command.argv[0]).name in {"apt-cache", "apt-get"}:
+            if self.bootstrap is not None:
+                command = replace(
+                    command,
+                    environment=tuple(
+                        (key, value)
+                        for key, value in command.environment
+                        if key != "APT_CONFIG"
+                    )
+                    + (("APT_CONFIG", str(self.bootstrap)),),
+                )
             source_options = (
                 (
                     "-o",
