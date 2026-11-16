@@ -4,6 +4,7 @@ import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from models.errors import ErrorCode
 from package_managers.apt import APT
@@ -123,14 +124,18 @@ def has_indexes(scope: AuthScope) -> bool:
     )
 
 
-def require_signature_rejection(result: CommandResult) -> None:
+def require_signature_rejection(
+    result: CommandResult, *, marker: Literal["NO_PUBKEY", "BADSIG"] = "NO_PUBKEY"
+) -> None:
     if (
         result.exit_code != 100
         or result.output_truncated
         or (result.error is not None and result.error.code != ErrorCode.COMMAND_FAILED)
-        or "NO_PUBKEY" not in result.stdout + result.stderr
+        or marker not in result.stdout + result.stderr
     ):
-        raise ValueError("Native rejection did not establish a missing signing key.")
+        raise ValueError(
+            "Native rejection did not establish the expected signature failure."
+        )
 
 
 def _reader(
@@ -213,5 +218,7 @@ def exercise_apt_auth(
     checks["unauthenticated_plan"] = "blocked"
     checks["cache_reuse"] = "none_fresh_scopes"
     checks["package_mutation_dispatch"] = "none"
-    checks["payload_signature_tampering"] = "not_tested"
+    from scripts.apt_tamper_checks import exercise_tampered_release
+
+    exercise_tampered_release(services, checks, root, trusted)
     checks["phase"] = "complete"

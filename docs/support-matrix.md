@@ -7,7 +7,8 @@ durable recovery and a controlled exit-zero verification failure. A read-only ru
 also passed altered-origin rejection using a private cache. Repository URL
 rejection against an existing private cache also passed. Signing-key
 content/reference drift now invalidates stale approval as well. Fresh signed
-indexes were accepted with current keys and rejected with removed keys. Native elevation,
+indexes were accepted with current keys and rejected with removed keys. Altered
+signed payloads were rejected with `BADSIG`. Native elevation,
 DPKG transaction cancellation and macOS qualification remain open. Metadata
 matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
@@ -27,7 +28,7 @@ details and disabled-action tooltips.
 
 | Scope | Command construction | Discovery / inventory readers | Verified operation service | Production mutations |
 | --- | --- | --- | --- | --- |
-| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke, Git upgrade, download cancellation/recovery, controlled verification failure, origin/URL/key-drift rejection and fresh-index authentication observed | Disabled; remaining native qualification gates pending |
+| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke, Git upgrade, download cancellation/recovery, controlled verification failure, origin/URL/key-drift rejection, fresh-index authentication and signed-payload tampering rejection observed | Disabled; remaining native qualification gates pending |
 | Homebrew core/cask, reviewed macOS ARM64 mappings | Implemented | Implemented | Implemented with mocked evidence | Disabled; native qualification pending for each source/action |
 | WinGet, Scoop, pacman, DNF, zypper, apk, Flatpak | Implemented where declared below | Live discovery where provider exists; no application inventory inspector | Not enabled | Disabled |
 | Chocolatey, MacPorts, Snap | Deferred | Deferred | Deferred | Disabled |
@@ -53,8 +54,10 @@ The [key report](native-qualification.md#retained-apt-signing-key-drift-evidence
 adds stale approval rejection after key content or reference changes.
 The [authentication report](native-qualification.md#retained-apt-fresh-index-authentication-evidence-2026-11-16)
 adds fresh-index acceptance with current keys and rejection with removed keys.
+The [tampering report](native-qualification.md#retained-apt-signed-payload-tampering-evidence-2026-11-16)
+adds `BADSIG` rejection of an altered signed release before package index retrieval.
 Hosted jobs have not been dispatched here. Elevation, cancellation during DPKG
-transactions, payload signature tampering, cached-metadata authentication, macOS
+transactions, cached-metadata authentication, macOS
 and cask qualification remain open. Milestone 16 remains unchecked.
 
 ## Adapter command capabilities (not production enablement)

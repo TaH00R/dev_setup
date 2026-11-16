@@ -59,7 +59,8 @@ It does not run on pushes, pull requests or ordinary unit-test discovery.
   against unchanged cached candidate metadata, refusing all mutation dispatch.
   The `--apt-auth` profile downloads fresh noble/main amd64 indexes into isolated
   caches over HTTPS. It tests current-key acceptance and removed-key rejection,
-  with no package installation or reuse of existing cached lists.
+  then serves altered signed metadata from a loopback-only fixture to test
+  `BADSIG` rejection. There is no package installation or cache reuse.
 - Homebrew: a `macos-15` hosted ARM64 runner with its existing Homebrew. It selects
   the reviewed ripgrep core formula; no manager/tap bootstrap is provided. Hosted
   images contain preinstalled software, so this is not clean-machine evidence.
@@ -244,9 +245,36 @@ explicit command approval. No TLS or signature bypass option is provided.
 Only this opt-in qualification profile refreshes private indexes. Normal
 application search/planning still uses existing caches and never refreshes them
 silently. No package mutation runs in this profile. Temporary scopes and the
-container were removed after testing. This evidence covers current-key acceptance
-and removed-key rejection during refresh; payload signature tampering and
-independent authentication of previously cached metadata remain open.
+container were removed after testing. This earlier report covers current-key
+acceptance and removed-key rejection during refresh. The extended run below adds
+payload-tampering evidence; authentication of previously cached metadata remains open.
+
+## Retained APT signed-payload tampering evidence (2026-11-16)
+
+The [extended authentication report](evidence/apt-ubuntu24.04-x86_64-auth-tamper-2026-11-16.json)
+records the same root Ubuntu 24.04 x86_64/APT 2.8.4 scope on the pinned image.
+Current-key acceptance and removed-key rejection passed again. A third, initially
+empty private cache tested payload integrity with the correct current key.
+
+The fixture takes the freshly authenticated noble `InRelease` bytes and changes
+one description byte. Origin, codename and all signature bytes stay unchanged.
+A server bound to `127.0.0.1` inside the disposable container serves only
+`/dists/noble/InRelease`, directly from memory. It cannot list directories, read
+paths, proxy requests or serve packages. Its ephemeral port is not published to
+the host or retained in evidence. This local HTTP fault fixture does not change
+TLS settings for the official HTTPS source or disable signature verification.
+
+Native APT exited 100 with `BADSIG`, fetched no other fixture path and retained no
+usable package index. Application planning against that failed cache was blocked.
+`NO_PUBKEY`, network failures, truncated output and exit zero cannot satisfy the
+bad-signature check. The server socket and worker thread stopped, temporary
+scopes were removed and the owned container was removed after verification.
+
+Six offline regressions cover the exact byte change, preserved signature,
+unsupported payload rejection, bounded loopback serving, error classification
+and private configuration. No package mutation ran. The report remains
+`qualified: false`; authentication of already-cached metadata, native elevation,
+DPKG interruption and macOS/Homebrew qualification remain open.
 
 ## Repeat the local APT profiles
 
@@ -322,8 +350,8 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
    verification-failure and private cached-origin rejection evidence. Repository
    URL and signing-key drift against an existing cache also passed. Fresh signed
    indexes were accepted with the current key and rejected with removed keys.
-   Payload signature tampering, cached-metadata authentication and Homebrew cases
-   remain open.
+   One-byte signed-payload tampering was rejected with `BADSIG` before package
+   index retrieval. Cached-metadata authentication and Homebrew cases remain open.
    Resolve any real parser/output limits.
 6. Review evidence per backend, source, OS/release, architecture, native version
    and action before adding any production enablement. Update the support matrix
@@ -344,16 +372,16 @@ evidence. No dependency or release-publishing change is introduced.
 ## Local validation (2026-11-16)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **568 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **574 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (175 files), mypy passed (104 source files), and catalog
+Ruff lint/format passed (177 files), mypy passed (105 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **147 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **153 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
 These core tests use synthetic mutations; they complement the seven real APT profiles.

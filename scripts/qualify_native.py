@@ -334,7 +334,7 @@ def main(argv: list[str] | None = None) -> int:
     profiles.add_argument(
         "--apt-auth",
         action="store_true",
-        help="Test fresh private index authentication with current and removed Ubuntu keys; downloads metadata only.",
+        help="Test fresh index authentication, removed keys and altered signatures with a loopback fixture; metadata only.",
     )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
