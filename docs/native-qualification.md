@@ -2,9 +2,9 @@
 
 Application support reporting and the production qualification gate are
 implemented. Native APT/Homebrew qualification is **not complete**. After starting
-the installed Docker Desktop, real APT smoke and upgrade checks passed in a
-disposable Ubuntu 24.04 x86_64 container. Package changes were confined to that
-container, with no host mounts or ports, and it was removed after testing. Existing
+the installed Docker Desktop, real APT smoke, upgrade and controlled failure checks
+passed in disposable Ubuntu 24.04 x86_64 containers. Package changes were confined
+to those containers, with no host mounts or ports, and they were removed after testing. Existing
 personal WSL distributions were not used. No macOS qualification host is connected.
 
 ## Support gate
@@ -41,6 +41,9 @@ It does not run on pushes, pull requests or ordinary unit-test discovery.
   upgrades to the current reviewed candidate, verifies the changed version in
   inventory and application refresh, and removes the selected package. Missing
   older versions or a no-op fail the upgrade profile instead of counting as success.
+  The separate `--apt-failures` profile uses CMake to test cancellation during an
+  active download, durable recovery and a controlled exit-zero verification race.
+  Containers use `--init` so adopted native helpers are reaped.
 - Homebrew: a `macos-15` hosted ARM64 runner with its existing Homebrew. It selects
   the reviewed ripgrep core formula; no manager/tap bootstrap is provided. Hosted
   images contain preinstalled software, so this is not clean-machine evidence.
@@ -75,8 +78,9 @@ desktop or ordinary tests.
 Even an exit-zero report says `qualified: false` and
 `smoke_passed_qualification_pending`. Latest-to-latest upgrade review in the default
 smoke is not a real upgrade and stays untested. Only the explicit APT upgrade
-profile can record a real version change as passed. The runner does not qualify native
-elevation prompts, mid-command cancellation or casks. A failure can leave package
+profile can record a real version change as passed. The failure profile covers
+download cancellation only, not interruption during DPKG unpack/configure. Native
+elevation prompts and casks remain unqualified. A failure can leave package
 changes on the disposable host; no native rollback is claimed.
 
 ## Retained APT evidence (2026-11-15)
@@ -101,6 +105,29 @@ containing sorted `(relative tracked filename, SHA-256 content)` pairs under
 The snapshot excludes symlinks, local environment files, caches and host paths.
 No generated archive or raw native output is committed.
 
+## Retained APT failure evidence (2026-11-16)
+
+The [CMake failure report](evidence/apt-ubuntu24.04-x86_64-failures-2026-11-16.json)
+records a separate root Ubuntu 24.04 x86_64 run with APT 2.8.4, Python 3.12.3 and
+the same pinned image. It retains `qualified: false`.
+
+- A fixed process-local download rate limit made cancellation observable while
+  a direct, live `apt-get` child was downloading. The owned child was reaped and
+  no live process remained in its group. No cancellation during DPKG unpack or
+  configure is claimed. Docker init reaps adopted helpers.
+- The cancelled lifecycle record survived closing and reopening SQLite. Retry
+  was refused until explicit native inspection found the prior inventory and
+  the user acknowledgement was supplied. Reconciliation preserved the cancelled
+  outcome. A fresh reviewed plan using normal APT then installed and removed CMake.
+- A controlled native removal ran after a genuine exit-zero install and before
+  verification. The install correctly failed with `verification_failed`, retained
+  exit code zero and emitted no `PackageInstalled` event. This was deliberate
+  fault injection, not a spontaneous native package-manager failure.
+
+The approved failure scope includes cleanup and that controlled removal. It
+does not edit repository configuration or persist the rate limit. Native
+elevation, altered configured origins, macOS and casks remain unqualified.
+
 ## Repeat the local APT profiles
 
 From a reviewed committed checkout with Docker's Linux engine running, the
@@ -115,7 +142,7 @@ git archive HEAD -o build/native-source.tar
 $qualificationCommit = (git rev-parse HEAD).Trim()
 $qualificationImage = 'ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5'
 docker pull $qualificationImage
-$qualificationContainer = (docker run --detach --rm --env DEV_SETUP_DISPOSABLE_CONTAINER=1 $qualificationImage sleep 1800).Trim()
+$qualificationContainer = (docker run --detach --rm --init --env DEV_SETUP_DISPOSABLE_CONTAINER=1 $qualificationImage sleep 7200).Trim()
 if ($qualificationContainer -notmatch '^[a-f0-9]{64}$') { throw 'Container creation failed.' }
 try {
     docker exec $qualificationContainer apt-get update
@@ -127,10 +154,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'APT smoke failed; inspect its bounded report.' }
     docker exec --env DEV_SETUP_SOURCE_COMMIT=$qualificationCommit --workdir /work $qualificationContainer python3 -m scripts.qualify_native --backend apt --apt-upgrade --approve-native-changes --output /tmp/native-apt-upgrade.json
     if ($LASTEXITCODE -ne 0) { throw 'APT upgrade failed; inspect its bounded report.' }
+    docker exec --env DEV_SETUP_SOURCE_COMMIT=$qualificationCommit --workdir /work $qualificationContainer python3 -m scripts.qualify_native --backend apt --apt-failures --approve-native-changes --output /tmp/native-apt-failures.json
+    if ($LASTEXITCODE -ne 0) { throw 'APT failure checks failed; inspect their bounded report.' }
 } finally {
     try {
         docker cp "${qualificationContainer}:/tmp/native-apt.json" build/native-apt.json
         docker cp "${qualificationContainer}:/tmp/native-apt-upgrade.json" build/native-apt-upgrade.json
+        docker cp "${qualificationContainer}:/tmp/native-apt-failures.json" build/native-apt-failures.json
     } finally {
         docker stop $qualificationContainer
     }
@@ -150,11 +180,15 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
    ARM64 images, with controlled older/newer versions from reviewed sources.
    APT Git now has real root-container upgrade evidence. A current-version no-op
    must never count as upgrade evidence, and macOS remains untested.
-3. Qualify native elevation/consent and cancellation during real native work,
-   including post-cancellation inventory, lifecycle recovery and retry rules.
+3. Qualify native elevation/consent and cancellation beyond APT downloads,
+   including DPKG transaction interruption and equivalent Homebrew recovery.
+   APT download cancellation, post-cancellation inventory, lifecycle reopening,
+   reconciliation and fresh retry passed in the retained failure run.
 4. Qualify Homebrew casks separately; formula success does not qualify casks.
 5. Inspect source/version identity, altered-source/candidate rejection and
-   verification failure on those hosts. Resolve any real parser/output limits.
+   verification failure on those hosts. APT now has controlled exit-zero
+   verification-failure evidence; altered-source and Homebrew cases remain open.
+   Resolve any real parser/output limits.
 6. Review evidence per backend, source, OS/release, architecture, native version
    and action before adding any production enablement. Update the support matrix
    and leave unsupported scopes disabled.
@@ -166,20 +200,20 @@ documented in the [Homebrew manual](https://docs.brew.sh/Manpage) and
 These references describe environments and commands; they are not project test
 evidence. No dependency or release-publishing change is introduced.
 
-## Local validation (2026-11-15)
+## Local validation (2026-11-16)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **538 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **544 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (166 files), mypy passed (99 source files), and catalog
+Ruff lint/format passed (168 files), mypy passed (100 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **117 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **123 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
-These core tests use synthetic mutations; they complement the two real APT runs.
+These core tests use synthetic mutations; they complement the three real APT profiles.
 Qt and the full Linux dependency matrix were not exercised by this subset.

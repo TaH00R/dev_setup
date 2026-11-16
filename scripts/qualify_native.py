@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import shutil
+import tempfile
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -304,15 +305,21 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--backend", choices=("apt", "homebrew"), required=True)
     parser.add_argument("--approve-native-changes", action="store_true")
-    parser.add_argument(
+    profiles = parser.add_mutually_exclusive_group()
+    profiles.add_argument(
         "--apt-upgrade",
         action="store_true",
         help="Test real older-to-current Git upgrade from reviewed Ubuntu repositories.",
     )
+    profiles.add_argument(
+        "--apt-failures",
+        action="store_true",
+        help="Test active-download cancellation, durable recovery and an approved native verification race.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
-    if args.apt_upgrade and args.backend != "apt":
-        parser.error("--apt-upgrade requires --backend apt")
+    if (args.apt_upgrade or args.apt_failures) and args.backend != "apt":
+        parser.error("APT-only profiles require --backend apt")
     host = detect_platform()
     try:
         disposable_guard(
@@ -341,7 +348,11 @@ def main(argv: list[str] | None = None) -> int:
         else platform.mac_ver()[0],
         "recorded_at": utc_now().isoformat(),
         "checks": checks,
-        "profile": "apt-upgrade" if args.apt_upgrade else "smoke",
+        "profile": "apt-failures"
+        if args.apt_failures
+        else "apt-upgrade"
+        if args.apt_upgrade
+        else "smoke",
     }
     revision = os.environ.get(
         "DEV_SETUP_SOURCE_COMMIT", os.environ.get("GITHUB_SHA", "")
@@ -364,9 +375,19 @@ def main(argv: list[str] | None = None) -> int:
                 from package_managers.apt import APT
                 from package_managers.homebrew import Homebrew
                 from package_managers.inspection import APTInspector, HomebrewInspector
+                from scripts.apt_failure_checks import (
+                    DownloadLimitedAPT,
+                    exercise_apt_failures,
+                )
 
                 runner = CommandRunner()
-                adapter = APT(host) if args.backend == "apt" else Homebrew(host)
+                adapter = (
+                    DownloadLimitedAPT(host)
+                    if args.apt_failures
+                    else APT(host)
+                    if args.backend == "apt"
+                    else Homebrew(host)
+                )
                 inspector = (
                     APTInspector(adapter, runner)
                     if isinstance(adapter, APT)
@@ -401,7 +422,15 @@ def main(argv: list[str] | None = None) -> int:
                     if args.apt_upgrade and isinstance(inspector, APTInspector)
                     else None
                 )
-                exercise(services, package_id, checks, baseline_version=baseline)
+                if args.apt_failures:
+                    with tempfile.TemporaryDirectory(
+                        prefix="dev-setup-native-failures-"
+                    ) as state_directory:
+                        exercise_apt_failures(
+                            services, checks, Path(state_directory) / "state.sqlite3"
+                        )
+                else:
+                    exercise(services, package_id, checks, baseline_version=baseline)
                 report["status"] = "smoke_passed_qualification_pending"
             except Exception as error:
                 report["error_code"] = (

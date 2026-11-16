@@ -30,7 +30,7 @@ from tests.fixtures.desktop import DesktopFixture
 
 
 class NativeQualificationTests(unittest.TestCase):
-    def apt_fixture(self, root):
+    def apt_fixture(self, root, package_id="git"):
         fixture = DesktopFixture(root)
         for name in ("apt-get", "apt-cache", "dpkg-query", "pkexec", "dpkg"):
             (root / name).write_bytes(b"Synthetic native executable; never executed.")
@@ -67,9 +67,9 @@ class NativeQualificationTests(unittest.TestCase):
             return CommandResult(command.preview(), now, now, 0)
 
         fixture.runner.run.side_effect = run
-        git = fixture.services.catalog.get("git")
+        package = fixture.services.catalog.get(package_id)
         fixture.services = DesktopServices(
-            CatalogService((git,)),
+            CatalogService((package,)),
             host,
             (fixture.adapter,),
             (fixture,),

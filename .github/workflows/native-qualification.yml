@@ -16,7 +16,9 @@ jobs:
   apt:
     if: ${{ inputs.approve_native_changes }}
     runs-on: ubuntu-24.04
-    container: ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+    container:
+      image: ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+      options: --init
     timeout-minutes: 20
     steps:
       - name: Explicit disposable image preparation
@@ -30,6 +32,8 @@ jobs:
         run: python3 -m scripts.qualify_native --backend apt --approve-native-changes --output native-apt.json
       - name: Exercise a real older-to-current APT Git upgrade
         run: python3 -m scripts.qualify_native --backend apt --apt-upgrade --approve-native-changes --output native-apt-upgrade.json
+      - name: Exercise native cancellation recovery and verification failure
+        run: python3 -m scripts.qualify_native --backend apt --apt-failures --approve-native-changes --output native-apt-failures.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -37,6 +41,7 @@ jobs:
           path: |
             native-apt.json
             native-apt-upgrade.json
+            native-apt-failures.json
           if-no-files-found: warn
   homebrew:
     if: ${{ inputs.approve_native_changes }}

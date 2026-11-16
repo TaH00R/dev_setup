@@ -2,7 +2,9 @@
 
 This matrix describes implemented command contracts and reviewed catalog scope.
 Root-run APT smoke and real Git upgrade checks passed in a disposable Ubuntu
-24.04 x86_64 container. Native elevation/cancellation and macOS qualification
+24.04 x86_64 container. A separate native run passed download cancellation,
+durable recovery and a controlled exit-zero verification failure. Native elevation,
+DPKG transaction cancellation and macOS qualification
 remain open. Metadata matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
 
@@ -21,7 +23,7 @@ details and disabled-action tooltips.
 
 | Scope | Command construction | Discovery / inventory readers | Verified operation service | Production mutations |
 | --- | --- | --- | --- | --- |
-| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke and Git upgrade observed | Disabled; remaining native qualification gates pending |
+| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke, Git upgrade, download cancellation/recovery and controlled verification failure observed | Disabled; remaining native qualification gates pending |
 | Homebrew core/cask, reviewed macOS ARM64 mappings | Implemented | Implemented | Implemented with mocked evidence | Disabled; native qualification pending for each source/action |
 | WinGet, Scoop, pacman, DNF, zypper, apk, Flatpak | Implemented where declared below | Live discovery where provider exists; no application inventory inspector | Not enabled | Disabled |
 | Chocolatey, MacPorts, Snap | Deferred | Deferred | Deferred | Disabled |
@@ -37,8 +39,11 @@ support. No downloaded report or smoke pass automatically enables an action.
 The opt-in [native qualification procedure](native-qualification.md) prepares
 repeatable hosted Ubuntu/container and macOS jobs. Local APT container smoke and
 real Git upgrade evidence is [retained](native-qualification.md#retained-apt-evidence-2026-11-15).
-Hosted jobs have not been dispatched here. Elevation, in-flight cancellation,
-macOS and cask qualification remain open. Milestone 16 remains unchecked.
+The [failure report](native-qualification.md#retained-apt-failure-evidence-2026-11-16)
+adds download cancellation, recovery and controlled verification-failure evidence.
+Hosted jobs have not been dispatched here. Elevation, cancellation during DPKG
+transactions, altered configured origins, macOS and cask qualification remain
+open. Milestone 16 remains unchecked.
 
 ## Adapter command capabilities (not production enablement)
 
