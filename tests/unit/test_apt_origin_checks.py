@@ -36,6 +36,14 @@ class APTOriginProfileTests(unittest.TestCase):
         self.native_source_error = False
         self.sources = None
         self.fixture.runner.run.side_effect = self.run_read
+        # This harness fixture models cache/parser behavior. Real trust-file
+        # snapshots and stale-approval rejection have separate core regressions.
+        trust = mock.patch(
+            "package_managers.inspection.trust_fingerprint",
+            return_value="fixture-trust",
+        )
+        trust.start()
+        self.addCleanup(trust.stop)
 
     def run_read(self, command, **kwargs):
         self.assertFalse(command.mutates)

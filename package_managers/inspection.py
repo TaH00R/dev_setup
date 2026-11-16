@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 from dataclasses import replace
+from pathlib import Path
 from threading import Event
 from typing import Any
 
@@ -20,6 +21,7 @@ from system.commands import Command
 from system.runner import CommandRunner
 
 from .apt import APT
+from .apt_trust import trust_fingerprint
 from .base import AdapterError, BackendAction, PackageManager
 from .homebrew import Homebrew
 
@@ -207,8 +209,37 @@ class HomebrewInspector(NativeInspector):
 
 
 class APTInspector(NativeInspector):
-    def __init__(self, adapter: APT, runner: CommandRunner) -> None:
+    def __init__(
+        self,
+        adapter: APT,
+        runner: CommandRunner,
+        *,
+        source_roots: tuple[Path, ...] = (Path("/etc/apt"),),
+        key_roots: tuple[Path, ...] = (
+            Path("/etc/apt/keyrings"),
+            Path("/usr/share/keyrings"),
+        ),
+    ) -> None:
         super().__init__(adapter, runner)
+        self.source_roots, self.key_roots = source_roots, key_roots
+
+    def _trust(self, path: str, spec: InstallSpec, cancel: Event | None) -> str:
+        entries = self.read(
+            self._command(
+                (
+                    path,
+                    "indextargets",
+                    "--format",
+                    "$(SOURCESENTRY)",
+                    "Identifier: Packages",
+                ),
+                spec,
+            ),
+            cancel,
+        )
+        return trust_fingerprint(
+            entries, source_roots=self.source_roots, key_roots=self.key_roots
+        )
 
     def inventory(self, cancel: Event | None = None) -> Inventory:
         output = self.read(self.adapter.list_installed(), cancel)
@@ -261,7 +292,9 @@ class APTInspector(NativeInspector):
         paths = dict(available.executables)
         version = None
         evidence = "remove"
+        trust = None
         if action != OperationAction.UNINSTALL:
+            trust = self._trust(paths["apt-get"], spec, cancel)
             # Pick only the selected release, not the user's unrelated default candidate.
             policy_args = (
                 paths["apt-cache"],
@@ -329,7 +362,7 @@ class APTInspector(NativeInspector):
                 raise _fail(
                     "Selected APT version is not exclusively mapped to reviewed Ubuntu noble origins."
                 )
-            evidence = metadata + json.dumps(sorted(repositories))
+            evidence = metadata + json.dumps((sorted(repositories), trust))
         token = spec.native_id + (f"={version}" if version else "")
         args = (
             ("remove",)
@@ -366,4 +399,6 @@ class APTInspector(NativeInspector):
                 raise _fail(
                     "APT simulation proposes unsupported effects or reports an error."
                 )
+        if trust is not None and self._trust(paths["apt-get"], spec, cancel) != trust:
+            raise _fail("APT source or key changed during native review.")
         return NativeReview(version, _digest(evidence), tuple(dict.fromkeys(effects)))

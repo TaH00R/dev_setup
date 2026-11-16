@@ -56,7 +56,15 @@ class InspectionTests(unittest.TestCase):
         self.runner = mock.create_autospec(CommandRunner, instance=True)
         self.runner.run.side_effect = self.run_read
         self.brew_reader = HomebrewInspector(self.brew, self.runner)
-        self.apt_reader = APTInspector(self.apt, self.runner)
+        self.key = self.root / "archive.gpg"
+        self.key.write_bytes(b"Synthetic public key; never used for verification.")
+        self.source = self.root / "ubuntu.sources"
+        self.source.write_text(
+            f"Types: deb\nURIs: http://archive.ubuntu.com/ubuntu\nSuites: noble\nComponents: main\nSigned-By: {self.key}\n"
+        )
+        self.apt_reader = APTInspector(
+            self.apt, self.runner, source_roots=(self.root,), key_roots=(self.root,)
+        )
         self.formula = {
             "name": "git",
             "tap": "homebrew/core",
@@ -125,6 +133,8 @@ class InspectionTests(unittest.TestCase):
             output = self.raw_json if self.raw_json is not None else json.dumps(data)
         elif Path(argv[0]).name == "dpkg-query":
             output = self.dpkg
+        elif "indextargets" in argv:
+            output = f"{self.source}:1\n"
         elif "--simulate" in argv:
             self.assertNotIn("pkexec", argv)
             self.assertIn("--assume-no", argv)
@@ -232,8 +242,11 @@ class InspectionTests(unittest.TestCase):
         self.assertEqual(len(review.changes), 2)
         commands = [call.args[0] for call in self.runner.run.call_args_list]
         self.assertTrue(all(not c.mutates and not c.requires_consent for c in commands))
+        simulation = next(
+            command for command in commands if "--simulate" in command.argv
+        )
         self.assertEqual(
-            commands[-1].argv[1:],
+            simulation.argv[1:],
             (
                 "--simulate",
                 "--assume-no",
@@ -246,6 +259,33 @@ class InspectionTests(unittest.TestCase):
             ),
         )
         self.assertTrue(all(c.environment == (("LC_ALL", "C"),) for c in commands))
+
+    def test_changed_key_blocks_reviewed_upgrade_before_dispatch(self):
+        planner = Planner(self.catalog, self.linux, (self.apt_reader,))
+        reviewed = planner.preview((PackageRequest("git", Action.UPGRADE),))
+        self.assertTrue(reviewed.plan.ready)
+        self.key.write_bytes(b"Changed public key; native cache output stays the same.")
+        report = OperationService((self.apt_reader,), self.runner).execute(
+            reviewed, consent=PlanConsent(reviewed, True, True)
+        )
+        result = report.operations[0].result
+        self.assertEqual(result.error.code, ErrorCode.VERIFICATION_FAILED)
+        self.assertIsNone(result.exit_code)
+        self.assertTrue(
+            all(not call.args[0].mutates for call in self.runner.run.call_args_list)
+        )
+
+    def test_key_changed_during_native_review_is_rejected(self):
+        original = self.runner.run.side_effect
+
+        def change(command, **kwargs):
+            if "show" in command.argv:
+                self.key.write_bytes(b"Changed during review")
+            return original(command, **kwargs)
+
+        self.runner.run.side_effect = change
+        with self.assertRaises(AdapterError):
+            self.apt_reader.review(self.spec("apt"), Action.INSTALL)
 
     def test_apt_unreviewed_origin_and_ambiguous_candidates_are_rejected(self):
         original = self.origins

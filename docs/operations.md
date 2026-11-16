@@ -42,6 +42,24 @@ Simulated `Inst`, `Remv`, and `Conf` effects are visible, including native
 dependencies outside the catalog. Purges and unsuccessful simulations are
 refused. APT removal retains configuration/data under normal native semantics.
 
+APT install/upgrade reviews now include source-manifest and referenced public-key
+content digests. Native `indextargets` identifies source files; snapshots before
+and after review detect changed inputs. Execution repeats the review, so changed
+`Signed-By` declarations or key bytes invalidate prior approval even when cached
+candidate metadata is unchanged. Only the resulting digest enters review/audit
+identity; raw manifests and key bytes are not logged or persisted.
+
+This scope requires explicit `.gpg`/`.asc` key paths under `/etc/apt/keyrings` or
+`/usr/share/keyrings`, with manifests under `/etc/apt`. Global trust,
+fingerprint-only selectors, inline keys, file links, missing/unreadable inputs and
+oversized files fail closed. Controlled tests may supply private source/key roots
+through the inspector constructor; catalog metadata cannot select those roots.
+Snapshots are bounded to 2 MiB per file, 16 MiB total and 128 distinct files.
+This detects trust-input drift; it does not authenticate a key or validate release
+signatures, and it cannot prevent changes by external native processes after the
+final snapshot. Native APT security checks remain required. Qualification and
+production mutation gates remain pending.
+
 Homebrew preserves the adapter's no-auto-update, no-install-cleanup, and
 no-analytics environment. Review shows native dependencies and platform
 requirements in metadata, without promising an exact resolved transaction.

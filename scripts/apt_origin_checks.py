@@ -236,7 +236,7 @@ def exercise_apt_sources(
         services.operations.runner, private_lists, private_sources
     )
     adapter = APT(services.host, find=base.find)
-    inspector = APTInspector(adapter, runner)
+    inspector = APTInspector(adapter, runner, source_roots=(private_sources,))
     native = DesktopServices(
         services.catalog,
         services.host,

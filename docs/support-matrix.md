@@ -5,7 +5,8 @@ Root-run APT smoke and real Git upgrade checks passed in a disposable Ubuntu
 24.04 x86_64 container. A separate native run passed download cancellation,
 durable recovery and a controlled exit-zero verification failure. A read-only run
 also passed altered-origin rejection using a private cache. Repository URL
-rejection against an existing private cache also passed. Native elevation,
+rejection against an existing private cache also passed. Signing-key
+content/reference drift now invalidates stale approval as well. Native elevation,
 DPKG transaction cancellation and macOS qualification remain open. Metadata
 matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
@@ -25,7 +26,7 @@ details and disabled-action tooltips.
 
 | Scope | Command construction | Discovery / inventory readers | Verified operation service | Production mutations |
 | --- | --- | --- | --- | --- |
-| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke, Git upgrade, download cancellation/recovery, controlled verification failure, altered cached origins and repository URL rejection observed | Disabled; remaining native qualification gates pending |
+| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke, Git upgrade, download cancellation/recovery, controlled verification failure, origin/URL rejection and stale signing-key approval rejection observed | Disabled; remaining native qualification gates pending |
 | Homebrew core/cask, reviewed macOS ARM64 mappings | Implemented | Implemented | Implemented with mocked evidence | Disabled; native qualification pending for each source/action |
 | WinGet, Scoop, pacman, DNF, zypper, apk, Flatpak | Implemented where declared below | Live discovery where provider exists; no application inventory inspector | Not enabled | Disabled |
 | Chocolatey, MacPorts, Snap | Deferred | Deferred | Deferred | Disabled |
@@ -47,9 +48,11 @@ The [cached-origin report](native-qualification.md#retained-apt-cached-origin-ev
 adds rejection of altered native cache metadata before mutation dispatch.
 The [source report](native-qualification.md#retained-apt-repository-url-evidence-2026-11-16)
 adds repository URL changes against an existing private cache.
+The [key report](native-qualification.md#retained-apt-signing-key-drift-evidence-2026-11-16)
+adds stale approval rejection after key content or reference changes.
 Hosted jobs have not been dispatched here. Elevation, cancellation during DPKG
-transactions, signing-key changes, newly downloaded source metadata, macOS and cask qualification remain
-open. Milestone 16 remains unchecked.
+transactions, signature authentication, newly downloaded source metadata, macOS
+and cask qualification remain open. Milestone 16 remains unchecked.
 
 ## Adapter command capabilities (not production enablement)
 

@@ -3,7 +3,7 @@
 Application support reporting and the production qualification gate are
 implemented. Native APT/Homebrew qualification is **not complete**. After starting
 the installed Docker Desktop, real APT smoke, upgrade, controlled failure,
-cached-origin and repository URL checks
+cached-origin, repository URL and signing-key drift checks
 passed in disposable Ubuntu 24.04 x86_64 containers. Package changes were confined
 to those containers, with no host mounts or ports, and they were removed after
 testing. Existing personal WSL distributions were not used. No macOS
@@ -53,6 +53,9 @@ It does not run on pushes, pull requests or ordinary unit-test discovery.
   The `--apt-sources` profile additionally copies source manifests and changes
   their URLs without refreshing the copied lists. Its runner also refuses
   mutations, and CMake must be absent.
+  The `--apt-keys` profile copies the Ubuntu archive public key and rewrites only
+  private manifests to reference the copy. It tests key content/reference drift
+  against unchanged cached candidate metadata, refusing all mutation dispatch.
 - Homebrew: a `macos-15` hosted ARM64 runner with its existing Homebrew. It selects
   the reviewed ripgrep core formula; no manager/tap bootstrap is provided. Hosted
   images contain preinstalled software, so this is not clean-machine evidence.
@@ -181,6 +184,36 @@ temporary copies inside a disposable container, removed after testing. This test
 URL changes against an existing cache; signing-key changes and newly downloaded
 repository metadata remain unqualified. The report remains `qualified: false`.
 
+## Retained APT signing-key drift evidence (2026-11-16)
+
+A native probe showed that changed `Signed-By` input could leave the old cached
+candidate review unchanged. The core now includes native source manifests and
+referenced key contents in the install/upgrade review fingerprint, with snapshots
+before and after inspection. Execution's existing fresh-review comparison rejects
+changed trust inputs before dispatch. The bounded reader and supported input
+forms are documented in [operation services](operations.md).
+
+The [key report](evidence/apt-ubuntu24.04-x86_64-keys-2026-11-16.json) records real
+Ubuntu 24.04 x86_64/APT 2.8.4 checks using private manifests, lists and public-key
+copies. Both changing key bytes at the same path and selecting an identical key
+copy at another path invalidated stale approval before mutation dispatch. The
+cached candidate version and transaction effects stayed unchanged. Restoring
+the private inputs restored the original review fingerprint.
+
+Fresh planning can describe the changed trust identity; fingerprinting does not
+authenticate the replacement key or validate cached release signatures. Inline
+keys, global trust, fingerprint-only selectors and paths outside the reviewed
+roots fail closed. This is drift detection, not complete signature qualification.
+No original key, source manifest or cached list was edited.
+
+The same source snapshot passed the native
+[CMake install/remove smoke](evidence/apt-ubuntu24.04-x86_64-smoke-trust-2026-11-16.json),
+[altered cached-origin check](evidence/apt-ubuntu24.04-x86_64-origins-trust-2026-11-16.json)
+and [repository URL check](evidence/apt-ubuntu24.04-x86_64-sources-trust-2026-11-16.json).
+The latter now rejects during source identity inspection with
+`verification_failed`; earlier evidence retained the native `command_failed`.
+All reports remain unqualified, and production mutation gates stay disabled.
+
 ## Repeat the local APT profiles
 
 From a reviewed committed checkout with Docker's Linux engine running, the
@@ -213,6 +246,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'APT origin checks failed; inspect their bounded report.' }
     docker exec --env DEV_SETUP_SOURCE_COMMIT=$qualificationCommit --workdir /work $qualificationContainer python3 -m scripts.qualify_native --backend apt --apt-sources --approve-native-changes --output /tmp/native-apt-sources.json
     if ($LASTEXITCODE -ne 0) { throw 'APT source checks failed; inspect their bounded report.' }
+    docker exec --env DEV_SETUP_SOURCE_COMMIT=$qualificationCommit --workdir /work $qualificationContainer python3 -m scripts.qualify_native --backend apt --apt-keys --approve-native-changes --output /tmp/native-apt-keys.json
+    if ($LASTEXITCODE -ne 0) { throw 'APT key checks failed; inspect their bounded report.' }
 } finally {
     try {
         docker cp "${qualificationContainer}:/tmp/native-apt.json" build/native-apt.json
@@ -220,6 +255,7 @@ try {
         docker cp "${qualificationContainer}:/tmp/native-apt-failures.json" build/native-apt-failures.json
         docker cp "${qualificationContainer}:/tmp/native-apt-origins.json" build/native-apt-origins.json
         docker cp "${qualificationContainer}:/tmp/native-apt-sources.json" build/native-apt-sources.json
+        docker cp "${qualificationContainer}:/tmp/native-apt-keys.json" build/native-apt-keys.json
     } finally {
         docker stop $qualificationContainer
     }
@@ -247,8 +283,8 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
 5. Inspect source/version identity, altered-source/candidate rejection and
    verification failure on those hosts. APT now has controlled exit-zero
    verification-failure and private cached-origin rejection evidence. Repository
-   URL changes against an existing cache also passed. Signing-key changes,
-   newly downloaded source metadata and Homebrew cases remain open.
+   URL and signing-key drift against an existing cache also passed. Signature
+   authentication, newly downloaded source metadata and Homebrew cases remain open.
    Resolve any real parser/output limits.
 6. Review evidence per backend, source, OS/release, architecture, native version
    and action before adding any production enablement. Update the support matrix
@@ -258,23 +294,25 @@ The [GitHub runner image list](https://github.com/actions/runner-images#availabl
 documents the selected OS/architecture labels. Native command behavior is
 documented in the [Homebrew manual](https://docs.brew.sh/Manpage) and
 [Ubuntu noble APT manual](https://manpages.ubuntu.com/manpages/noble/man8/apt-get.8.html).
+The reviewed [APT source format](https://manpages.ubuntu.com/manpages/noble/man5/sources.list.5.html)
+defines explicit keyring paths and the two source-manifest formats.
 These references describe environments and commands; they are not project test
 evidence. No dependency or release-publishing change is introduced.
 
 ## Local validation (2026-11-16)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **554 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **562 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (170 files), mypy passed (101 source files), and catalog
+Ruff lint/format passed (173 files), mypy passed (103 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **133 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **141 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
-These core tests use synthetic mutations; they complement the five real APT profiles.
+These core tests use synthetic mutations; they complement the six real APT profiles.
 Qt and the full Linux dependency matrix were not exercised by this subset.
