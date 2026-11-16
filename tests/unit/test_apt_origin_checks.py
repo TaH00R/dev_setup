@@ -44,6 +44,12 @@ class APTOriginProfileTests(unittest.TestCase):
         )
         trust.start()
         self.addCleanup(trust.stop)
+        authenticated = mock.patch(
+            "package_managers.inspection.cache_fingerprint",
+            return_value="fixture-authenticated-release",
+        )
+        authenticated.start()
+        self.addCleanup(authenticated.stop)
 
     def run_read(self, command, **kwargs):
         self.assertFalse(command.mutates)

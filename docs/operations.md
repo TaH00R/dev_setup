@@ -49,16 +49,34 @@ and after review detect changed inputs. Execution repeats the review, so changed
 candidate metadata is unchanged. Only the resulting digest enters review/audit
 identity; raw manifests and key bytes are not logged or persisted.
 
-This scope requires explicit `.gpg`/`.asc` key paths under `/etc/apt/keyrings` or
+Cached install/upgrade review also authenticates each native cached `InRelease`
+with `gpgv`, using only the manifest's explicit keyrings. Native component/binary
+index filenames locate the corresponding release in the reviewed lists root.
+Zero exit and a complete strong-hash `VALIDSIG` status are required; bad, missing,
+unexpected or truncated status fails closed. The verifier, release and keys are
+bound and rechecked around execution. Their content identities enter the review
+fingerprint, so stale approval cannot survive a changed cached release or verifier.
+No index refresh or network request is made by this core check.
+
+This scope requires explicit binary `.gpg` key paths under `/etc/apt/keyrings` or
 `/usr/share/keyrings`, with manifests under `/etc/apt`. Global trust,
-fingerprint-only selectors, inline keys, file links, missing/unreadable inputs and
-oversized files fail closed. Controlled tests may supply private source/key roots
+fingerprint-only selectors, inline/armored keys, mixed key sets within one
+manifest, detached-release layouts, file links, missing/unreadable inputs and
+oversized files fail closed. Each manifest needs one consistent explicit key set.
+Controlled tests may supply private source/key/list roots
 through the inspector constructor; catalog metadata cannot select those roots.
-Snapshots are bounded to 2 MiB per file, 16 MiB total and 128 distinct files.
-This detects trust-input drift; it does not authenticate a key or validate release
-signatures, and it cannot prevent changes by external native processes after the
-final snapshot. Native APT security checks remain required. Qualification and
-production mutation gates remain pending.
+Source/key snapshots are bounded to 2 MiB per file, 16 MiB total and 128 files.
+Cached-release verification permits at most 128 releases and 16 MiB of input per
+pass. Missing `gpgv` blocks install/upgrade review; inventory, verification and
+removal review do not require it. The tested Ubuntu image already includes gpgv;
+no Python dependency or automatic utility installation was added.
+
+This authenticates release signatures against configured keys. Package-index
+checksum linkage, release freshness, vendor-key provenance and independent key
+expiry/revocation policy remain follow-up work. In particular,
+[gpgv trusts the supplied keyring and does not assess key expiry or revocation](https://www.gnupg.org/documentation/manuals/gnupg/gpgv.html).
+External native processes can still change inputs after the final snapshot.
+Native APT security checks remain required, and production gates remain disabled.
 
 Homebrew preserves the adapter's no-auto-update, no-install-cleanup, and
 no-analytics environment. Review shows native dependencies and platform

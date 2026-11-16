@@ -47,7 +47,11 @@ def exercise_apt_keys(
     )
     adapter = APT(services.host, find=base.find)
     inspector = APTInspector(
-        adapter, runner, source_roots=(private_sources,), key_roots=(private_keys,)
+        adapter,
+        runner,
+        source_roots=(private_sources,),
+        key_roots=(private_keys,),
+        list_roots=(private_lists,),
     )
     native = DesktopServices(
         services.catalog,
@@ -91,7 +95,20 @@ def exercise_apt_keys(
                     )
             fresh = native.planner.preview((PackageRequest("cmake"),))
             current = fresh.prepared[0].review if fresh.plan.ready else None
-            if (
+            if scenario == "key_contents":
+                if (
+                    fresh.plan.ready
+                    or not fresh.plan.issues
+                    or any(
+                        issue.code != ErrorCode.VERIFICATION_FAILED
+                        for issue in fresh.plan.issues
+                    )
+                ):
+                    raise ValueError(
+                        "Invalid signing keys did not block fresh cache review."
+                    )
+                checks["key_contents_fresh_plan"] = "blocked_unverified_key"
+            elif (
                 current is None
                 or current.version != review.version
                 or current.changes != review.changes
@@ -127,8 +144,8 @@ def exercise_apt_keys(
             raise ValueError(
                 "Restored trust inputs did not restore the reviewed identity."
             )
-    checks["native_cache_candidate_effects"] = "unchanged"
+    checks["native_cache_candidate_effects"] = "unchanged_reference_case"
     checks["restored_trust_review"] = "passed"
     checks["native_mutation_dispatch"] = "none"
-    checks["signature_authentication"] = "not_tested"
+    checks["signature_authentication"] = "cached_release_checked"
     checks["phase"] = "complete"

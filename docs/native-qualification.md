@@ -60,7 +60,9 @@ It does not run on pushes, pull requests or ordinary unit-test discovery.
   The `--apt-auth` profile downloads fresh noble/main amd64 indexes into isolated
   caches over HTTPS. It tests current-key acceptance and removed-key rejection,
   then serves altered signed metadata from a loopback-only fixture to test
-  `BADSIG` rejection. There is no package installation or cache reuse.
+  `BADSIG` rejection. It also corrupts a previously authenticated cached release
+  to check fresh-plan/stale-approval rejection and byte restoration without a
+  refresh. There is no package installation or reuse of a preexisting host cache.
 - Homebrew: a `macos-15` hosted ARM64 runner with its existing Homebrew. It selects
   the reviewed ripgrep core formula; no manager/tap bootstrap is provided. Hosted
   images contain preinstalled software, so this is not clean-machine evidence.
@@ -276,6 +278,39 @@ and private configuration. No package mutation ran. The report remains
 `qualified: false`; authentication of already-cached metadata, native elevation,
 DPKG interruption and macOS/Homebrew qualification remain open.
 
+## Retained APT cached-release authentication evidence (2026-11-16)
+
+A native probe reproduced a ready plan with an unchanged review after one cached
+`InRelease` description byte was altered. Install/upgrade inspection now verifies
+cached releases offline with the explicitly configured binary keyrings and native
+`gpgv`. The release, verifier and key content identities join the review
+fingerprint. Snapshots before and after review prevent a changed release from
+retaining stale approval. Supported layouts and trust limits are documented in
+[operation services](operations.md).
+
+The [cached-release report](evidence/apt-ubuntu24.04-x86_64-cached-auth-2026-11-16.json)
+records Ubuntu 24.04 x86_64, APT 2.8.4 and gpgv 2.4.4 on the pinned image.
+Corrupting an authenticated private cached release blocked both new planning and
+execution of a previously reviewed plan before any package command. There was no
+install exit code and no refresh during the corrupted-cache check. Restoring the
+original signed bytes restored the same native review. Fresh authentication,
+removed-key rejection and loopback signed-payload rejection also passed.
+
+The same tested snapshot passed the native
+[CMake smoke](evidence/apt-ubuntu24.04-x86_64-cached-smoke-2026-11-16.json),
+[key drift](evidence/apt-ubuntu24.04-x86_64-cached-keys-2026-11-16.json),
+[origin](evidence/apt-ubuntu24.04-x86_64-cached-origins-2026-11-16.json) and
+[source URL](evidence/apt-ubuntu24.04-x86_64-cached-sources-2026-11-16.json) checks.
+Invalid key bytes now block a fresh plan as well as stale approval; an identical
+key copy at a different declared path still requires a new review. Original
+system caches/configuration were not corrupted, and the owned container was
+removed after testing.
+
+This authenticates cached release signatures only. Package-index checksum
+linkage, freshness and independent key expiry/revocation policy remain open.
+The GnuPG verifier assumes the explicitly supplied keys are trusted. No backend
+scope is fully qualified and no production mutation gate is enabled.
+
 ## Repeat the local APT profiles
 
 From a reviewed committed checkout with Docker's Linux engine running, the
@@ -351,7 +386,9 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
    URL and signing-key drift against an existing cache also passed. Fresh signed
    indexes were accepted with the current key and rejected with removed keys.
    One-byte signed-payload tampering was rejected with `BADSIG` before package
-   index retrieval. Cached-metadata authentication and Homebrew cases remain open.
+   index retrieval. Cached release signatures now reject altered bytes before
+   planning/dispatch. Package-index checksum linkage, freshness/key policy and
+   Homebrew cases remain open.
    Resolve any real parser/output limits.
 6. Review evidence per backend, source, OS/release, architecture, native version
    and action before adding any production enablement. Update the support matrix
@@ -372,16 +409,16 @@ evidence. No dependency or release-publishing change is introduced.
 ## Local validation (2026-11-16)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **574 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **585 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (177 files), mypy passed (105 source files), and catalog
+Ruff lint/format passed (180 files), mypy passed (107 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **153 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **164 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_apt_cache tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
 These core tests use synthetic mutations; they complement the seven real APT profiles.

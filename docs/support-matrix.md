@@ -8,7 +8,8 @@ also passed altered-origin rejection using a private cache. Repository URL
 rejection against an existing private cache also passed. Signing-key
 content/reference drift now invalidates stale approval as well. Fresh signed
 indexes were accepted with current keys and rejected with removed keys. Altered
-signed payloads were rejected with `BADSIG`. Native elevation,
+signed payloads were rejected with `BADSIG`. Cached release signatures now block
+corrupted-cache plans and stale approval as well. Native elevation,
 DPKG transaction cancellation and macOS qualification remain open. Metadata
 matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
@@ -19,8 +20,8 @@ implemented. Windows currently supports catalog browsing in the desktop.
 
 ## Application workflow support (milestone 16, in progress)
 
-No backend/source/platform scope has reviewed native mutation qualification
-evidence yet. Adapter presence and successful command construction do not grant
+No backend/source/platform scope has completed native mutation qualification
+yet. Adapter presence and successful command construction do not grant
 qualification. The normal desktop now disables install/update/remove, including
 presets and execution of a previously prepared plan. Search, compatible inventory
 and read-only verification remain available. The reason is shown in package
@@ -28,7 +29,7 @@ details and disabled-action tooltips.
 
 | Scope | Command construction | Discovery / inventory readers | Verified operation service | Production mutations |
 | --- | --- | --- | --- | --- |
-| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke, Git upgrade, download cancellation/recovery, controlled verification failure, origin/URL/key-drift rejection, fresh-index authentication and signed-payload tampering rejection observed | Disabled; remaining native qualification gates pending |
+| APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke, Git upgrade, download cancellation/recovery, controlled verification failure, origin/URL/key-drift rejection, fresh-index authentication and cached/signed-release tampering rejection observed | Disabled; remaining native qualification gates pending |
 | Homebrew core/cask, reviewed macOS ARM64 mappings | Implemented | Implemented | Implemented with mocked evidence | Disabled; native qualification pending for each source/action |
 | WinGet, Scoop, pacman, DNF, zypper, apk, Flatpak | Implemented where declared below | Live discovery where provider exists; no application inventory inspector | Not enabled | Disabled |
 | Chocolatey, MacPorts, Snap | Deferred | Deferred | Deferred | Disabled |
@@ -56,8 +57,11 @@ The [authentication report](native-qualification.md#retained-apt-fresh-index-aut
 adds fresh-index acceptance with current keys and rejection with removed keys.
 The [tampering report](native-qualification.md#retained-apt-signed-payload-tampering-evidence-2026-11-16)
 adds `BADSIG` rejection of an altered signed release before package index retrieval.
+The [cached-release reports](native-qualification.md#retained-apt-cached-release-authentication-evidence-2026-11-16)
+add offline signature verification before install/upgrade review and stale-approval
+rejection after cached-release corruption. The tested verifier is gpgv 2.4.4.
 Hosted jobs have not been dispatched here. Elevation, cancellation during DPKG
-transactions, cached-metadata authentication, macOS
+transactions, package-index checksum linkage, freshness/key-validity policy, macOS
 and cask qualification remain open. Milestone 16 remains unchecked.
 
 ## Adapter command capabilities (not production enablement)

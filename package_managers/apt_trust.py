@@ -76,7 +76,7 @@ def _read(path: Path, roots: tuple[Path, ...]) -> bytes:
         raise _fail() from None
 
 
-def _keys(path: Path, content: bytes) -> tuple[Path, ...]:
+def _keys(path: Path, content: bytes, *, uniform: bool = False) -> tuple[Path, ...]:
     try:
         text = content.decode("utf-8")
     except UnicodeError:
@@ -114,6 +114,10 @@ def _keys(path: Path, content: bytes) -> tuple[Path, ...]:
     else:
         raise _fail()
     if not values or any(not tokens for tokens in values):
+        raise _fail()
+    if uniform and any(set(tokens) != set(values[0]) for tokens in values[1:]):
+        # A cached release must never inherit another stanza's signing authority.
+        # Mixed-key manifests need stanza-aware native mapping before support.
         raise _fail()
     keys = tuple(dict.fromkeys(Path(token) for tokens in values for token in tokens))
     if len(keys) > 128 or any(

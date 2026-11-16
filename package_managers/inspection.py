@@ -21,6 +21,7 @@ from system.commands import Command
 from system.runner import CommandRunner
 
 from .apt import APT
+from .apt_cache import cache_fingerprint
 from .apt_trust import trust_fingerprint
 from .base import AdapterError, BackendAction, PackageManager
 from .homebrew import Homebrew
@@ -219,9 +220,11 @@ class APTInspector(NativeInspector):
             Path("/etc/apt/keyrings"),
             Path("/usr/share/keyrings"),
         ),
+        list_roots: tuple[Path, ...] = (Path("/var/lib/apt/lists"),),
     ) -> None:
         super().__init__(adapter, runner)
         self.source_roots, self.key_roots = source_roots, key_roots
+        self.list_roots = list_roots
 
     def _trust(self, path: str, spec: InstallSpec, cancel: Event | None) -> str:
         entries = self.read(
@@ -237,9 +240,33 @@ class APTInspector(NativeInspector):
             ),
             cancel,
         )
-        return trust_fingerprint(
+        trust = trust_fingerprint(
             entries, source_roots=self.source_roots, key_roots=self.key_roots
         )
+        targets = self.read(
+            self._command(
+                (
+                    path,
+                    "indextargets",
+                    "--format",
+                    "$(FILENAME)|$(METAKEY)|$(SOURCESENTRY)",
+                    "Identifier: Packages",
+                ),
+                spec,
+            ),
+            cancel,
+        )
+        authenticated = cache_fingerprint(
+            self.adapter,
+            self.runner,
+            spec,
+            targets,
+            cancel,
+            source_roots=self.source_roots,
+            key_roots=self.key_roots,
+            list_roots=self.list_roots,
+        )
+        return _digest((trust, authenticated))
 
     def inventory(self, cancel: Event | None = None) -> Inventory:
         output = self.read(self.adapter.list_installed(), cancel)

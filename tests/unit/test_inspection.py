@@ -62,8 +62,25 @@ class InspectionTests(unittest.TestCase):
         self.source.write_text(
             f"Types: deb\nURIs: http://archive.ubuntu.com/ubuntu\nSuites: noble\nComponents: main\nSigned-By: {self.key}\n"
         )
+        self.cache = self.root / "lists"
+        self.cache.mkdir()
+        self.index = (
+            self.cache
+            / "archive.ubuntu.com_ubuntu_dists_noble_main_binary-amd64_Packages.lz4"
+        )
+        self.release = self.cache / "archive.ubuntu.com_ubuntu_dists_noble_InRelease"
+        self.release.write_bytes(
+            b"-----BEGIN PGP SIGNED MESSAGE-----\nSynthetic signed release; never actually verified."
+        )
+        self.gpg_status = (
+            "[GNUPG:] VALIDSIG " + "A" * 40 + " 2026-01-01 1767225600 0 4 0 1 10 01\n"
+        )
         self.apt_reader = APTInspector(
-            self.apt, self.runner, source_roots=(self.root,), key_roots=(self.root,)
+            self.apt,
+            self.runner,
+            source_roots=(self.root,),
+            key_roots=(self.root,),
+            list_roots=(self.cache,),
         )
         self.formula = {
             "name": "git",
@@ -133,8 +150,14 @@ class InspectionTests(unittest.TestCase):
             output = self.raw_json if self.raw_json is not None else json.dumps(data)
         elif Path(argv[0]).name == "dpkg-query":
             output = self.dpkg
+        elif Path(argv[0]).name == "gpgv":
+            output = self.gpg_status
         elif "indextargets" in argv:
-            output = f"{self.source}:1\n"
+            output = (
+                f"{self.index}|main/binary-amd64/Packages|{self.source}:1\n"
+                if "$(FILENAME)|$(METAKEY)|$(SOURCESENTRY)" in argv
+                else f"{self.source}:1\n"
+            )
         elif "--simulate" in argv:
             self.assertNotIn("pkexec", argv)
             self.assertIn("--assume-no", argv)
@@ -286,6 +309,36 @@ class InspectionTests(unittest.TestCase):
         self.runner.run.side_effect = change
         with self.assertRaises(AdapterError):
             self.apt_reader.review(self.spec("apt"), Action.INSTALL)
+
+    def test_bad_cached_release_blocks_new_and_stale_plans_before_mutation(self):
+        planner = Planner(self.catalog, self.linux, (self.apt_reader,))
+        reviewed = planner.preview((PackageRequest("git", Action.UPGRADE),))
+        self.assertTrue(reviewed.plan.ready)
+        self.gpg_status = "[GNUPG:] BADSIG synthetic\n"
+        self.assertFalse(
+            planner.preview((PackageRequest("git", Action.UPGRADE),)).plan.ready
+        )
+        report = OperationService((self.apt_reader,), self.runner).execute(
+            reviewed, consent=PlanConsent(reviewed, True, True)
+        )
+        self.assertEqual(
+            report.operations[0].result.error.code, ErrorCode.VERIFICATION_FAILED
+        )
+        self.assertIsNone(report.operations[0].result.exit_code)
+        self.assertTrue(
+            all(not call.args[0].mutates for call in self.runner.run.call_args_list)
+        )
+
+    def test_missing_gpgv_still_allows_inventory_and_removal_review(self):
+        finder = self.apt.find
+        self.apt.find = lambda name: None if name == "gpgv" else finder(name)
+        self.assertIsNotNone(self.apt_reader.inventory().get("git"))
+        self.assertIsNone(
+            self.apt_reader.review(self.spec("apt"), Action.UNINSTALL).version
+        )
+        with self.assertRaises(AdapterError) as caught:
+            self.apt_reader.review(self.spec("apt"), Action.INSTALL)
+        self.assertEqual(caught.exception.error.code, ErrorCode.MISSING_BACKEND)
 
     def test_apt_unreviewed_origin_and_ambiguous_candidates_are_rejected(self):
         original = self.origins

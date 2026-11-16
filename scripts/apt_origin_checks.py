@@ -127,7 +127,7 @@ def exercise_apt_origins(
         raise ValueError("Origin qualification requires APT.")
     runner = PrivateListsRunner(services.operations.runner, private_lists)
     adapter = APT(services.host, find=base.find)
-    inspector = APTInspector(adapter, runner)
+    inspector = APTInspector(adapter, runner, list_roots=(private_lists,))
     native = DesktopServices(
         services.catalog,
         services.host,
@@ -251,7 +251,9 @@ def exercise_apt_sources(
         services.operations.runner, private_lists, private_sources
     )
     adapter = APT(services.host, find=base.find)
-    inspector = APTInspector(adapter, runner, source_roots=(private_sources,))
+    inspector = APTInspector(
+        adapter, runner, source_roots=(private_sources,), list_roots=(private_lists,)
+    )
     native = DesktopServices(
         services.catalog,
         services.host,

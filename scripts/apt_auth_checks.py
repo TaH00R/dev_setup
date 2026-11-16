@@ -145,7 +145,11 @@ def _reader(
         services.operations.runner, scope.lists, scope.sources, scope.bootstrap
     )
     inspector = APTInspector(
-        adapter, runner, source_roots=(scope.sources,), key_roots=(scope.keys,)
+        adapter,
+        runner,
+        source_roots=(scope.sources,),
+        key_roots=(scope.keys,),
+        list_roots=(scope.lists,),
     )
     return DesktopServices(
         services.catalog,
@@ -221,4 +225,7 @@ def exercise_apt_auth(
     from scripts.apt_tamper_checks import exercise_tampered_release
 
     exercise_tampered_release(services, checks, root, trusted)
+    from scripts.apt_cached_checks import exercise_cached_release
+
+    exercise_cached_release(services, checks, trusted)
     checks["phase"] = "complete"
