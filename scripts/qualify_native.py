@@ -316,9 +316,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Test active-download cancellation, durable recovery and an approved native verification race.",
     )
+    profiles.add_argument(
+        "--apt-origins",
+        action="store_true",
+        help="Test altered origin rejection using a private native cache; no native mutations.",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
-    if (args.apt_upgrade or args.apt_failures) and args.backend != "apt":
+    if (
+        args.apt_upgrade or args.apt_failures or args.apt_origins
+    ) and args.backend != "apt":
         parser.error("APT-only profiles require --backend apt")
     host = detect_platform()
     try:
@@ -348,7 +355,9 @@ def main(argv: list[str] | None = None) -> int:
         else platform.mac_ver()[0],
         "recorded_at": utc_now().isoformat(),
         "checks": checks,
-        "profile": "apt-failures"
+        "profile": "apt-origins"
+        if args.apt_origins
+        else "apt-failures"
         if args.apt_failures
         else "apt-upgrade"
         if args.apt_upgrade
@@ -422,7 +431,19 @@ def main(argv: list[str] | None = None) -> int:
                     if args.apt_upgrade and isinstance(inspector, APTInspector)
                     else None
                 )
-                if args.apt_failures:
+                if args.apt_origins:
+                    from scripts.apt_origin_checks import (
+                        copy_lists,
+                        exercise_apt_origins,
+                    )
+
+                    with tempfile.TemporaryDirectory(
+                        prefix="dev-setup-native-origins-"
+                    ) as cache_directory:
+                        private_lists = Path(cache_directory) / "lists"
+                        copy_lists(Path("/var/lib/apt/lists"), private_lists)
+                        exercise_apt_origins(services, checks, private_lists)
+                elif args.apt_failures:
                     with tempfile.TemporaryDirectory(
                         prefix="dev-setup-native-failures-"
                     ) as state_directory:

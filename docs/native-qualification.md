@@ -2,10 +2,12 @@
 
 Application support reporting and the production qualification gate are
 implemented. Native APT/Homebrew qualification is **not complete**. After starting
-the installed Docker Desktop, real APT smoke, upgrade and controlled failure checks
+the installed Docker Desktop, real APT smoke, upgrade, controlled failure and
+cached-origin checks
 passed in disposable Ubuntu 24.04 x86_64 containers. Package changes were confined
-to those containers, with no host mounts or ports, and they were removed after testing. Existing
-personal WSL distributions were not used. No macOS qualification host is connected.
+to those containers, with no host mounts or ports, and they were removed after
+testing. Existing personal WSL distributions were not used. No macOS
+qualification host is connected.
 
 ## Support gate
 
@@ -44,6 +46,10 @@ It does not run on pushes, pull requests or ordinary unit-test discovery.
   The separate `--apt-failures` profile uses CMake to test cancellation during an
   active download, durable recovery and a controlled exit-zero verification race.
   Containers use `--init` so adopted native helpers are reaped.
+  The `--apt-origins` profile copies the native list cache into a temporary
+  directory, redirects native APT reads there and tests altered cached origins.
+  Its runner refuses all mutation dispatch, even with approval. It requires
+  CMake to be absent so the initial plan represents a genuine installation.
 - Homebrew: a `macos-15` hosted ARM64 runner with its existing Homebrew. It selects
   the reviewed ripgrep core formula; no manager/tap bootstrap is provided. Hosted
   images contain preinstalled software, so this is not clean-machine evidence.
@@ -128,6 +134,27 @@ The approved failure scope includes cleanup and that controlled removal. It
 does not edit repository configuration or persist the rate limit. Native
 elevation, altered configured origins, macOS and casks remain unqualified.
 
+## Retained APT cached-origin evidence (2026-11-16)
+
+The [origin report](evidence/apt-ubuntu24.04-x86_64-origins-2026-11-16.json)
+records a root Ubuntu 24.04 x86_64/APT 2.8.4 run on the same pinned image.
+The native `apt-cache` reader observed altered Origin fields in a private copy
+of cached InRelease files. Both fresh planning and execution of a previously
+reviewed plan rejected the unreviewed origin. Execution failed before any native
+mutation dispatch, with no exit code. Restoring the copied bytes restored the
+original native review. Original lists and repository configuration were not edited.
+
+APT reads explicitly select the private lists and disable shared binary caches,
+preventing stale binary metadata from hiding the injected change. The temporary
+copies are removed afterward, including on failure. No update, download, install
+or signature-check bypass runs in this profile. Image preparation remains the
+separate visible container step.
+
+This deliberately corrupts already-cached metadata. It tests application origin
+checks, not signature verification, repository URL changes, key replacement or
+APT's handling of a newly published repository. Those broader source checks
+remain open. The report remains `qualified: false` and does not enable mutations.
+
 ## Repeat the local APT profiles
 
 From a reviewed committed checkout with Docker's Linux engine running, the
@@ -156,11 +183,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'APT upgrade failed; inspect its bounded report.' }
     docker exec --env DEV_SETUP_SOURCE_COMMIT=$qualificationCommit --workdir /work $qualificationContainer python3 -m scripts.qualify_native --backend apt --apt-failures --approve-native-changes --output /tmp/native-apt-failures.json
     if ($LASTEXITCODE -ne 0) { throw 'APT failure checks failed; inspect their bounded report.' }
+    docker exec --env DEV_SETUP_SOURCE_COMMIT=$qualificationCommit --workdir /work $qualificationContainer python3 -m scripts.qualify_native --backend apt --apt-origins --approve-native-changes --output /tmp/native-apt-origins.json
+    if ($LASTEXITCODE -ne 0) { throw 'APT origin checks failed; inspect their bounded report.' }
 } finally {
     try {
         docker cp "${qualificationContainer}:/tmp/native-apt.json" build/native-apt.json
         docker cp "${qualificationContainer}:/tmp/native-apt-upgrade.json" build/native-apt-upgrade.json
         docker cp "${qualificationContainer}:/tmp/native-apt-failures.json" build/native-apt-failures.json
+        docker cp "${qualificationContainer}:/tmp/native-apt-origins.json" build/native-apt-origins.json
     } finally {
         docker stop $qualificationContainer
     }
@@ -187,7 +217,8 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
 4. Qualify Homebrew casks separately; formula success does not qualify casks.
 5. Inspect source/version identity, altered-source/candidate rejection and
    verification failure on those hosts. APT now has controlled exit-zero
-   verification-failure evidence; altered-source and Homebrew cases remain open.
+   verification-failure and private cached-origin rejection evidence. Repository
+   URL/key changes and Homebrew cases remain open.
    Resolve any real parser/output limits.
 6. Review evidence per backend, source, OS/release, architecture, native version
    and action before adding any production enablement. Update the support matrix
@@ -203,17 +234,17 @@ evidence. No dependency or release-publishing change is introduced.
 ## Local validation (2026-11-16)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **544 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **550 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (168 files), mypy passed (100 source files), and catalog
+Ruff lint/format passed (170 files), mypy passed (101 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **123 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **129 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
-These core tests use synthetic mutations; they complement the three real APT profiles.
+These core tests use synthetic mutations; they complement the four real APT profiles.
 Qt and the full Linux dependency matrix were not exercised by this subset.
