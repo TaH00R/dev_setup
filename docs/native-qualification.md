@@ -62,7 +62,9 @@ It does not run on pushes, pull requests or ordinary unit-test discovery.
   then serves altered signed metadata from a loopback-only fixture to test
   `BADSIG` rejection. It also corrupts a previously authenticated cached release
   to check fresh-plan/stale-approval rejection and byte restoration without a
-  refresh. There is no package installation or reuse of a preexisting host cache.
+  refresh. Decoded package indexes must match signed SHA-256 and sizes. A controlled
+  reader clock also checks signed time bounds without changing the system clock.
+  There is no package installation or reuse of a preexisting host cache.
 - Homebrew: a `macos-15` hosted ARM64 runner with its existing Homebrew. It selects
   the reviewed ripgrep core formula; no manager/tap bootstrap is provided. Hosted
   images contain preinstalled software, so this is not clean-machine evidence.
@@ -343,6 +345,41 @@ elevation, DPKG interruption and macOS/cask qualification remain open. There is
 still a race against external changes after the final snapshot. Production
 mutations remain disabled and milestone 16 remains unchecked.
 
+## Retained APT signed-time evidence (2026-11-17)
+
+Cached review now requires an authenticated `Date` and enforces `Valid-Until`
+when declared. Future timestamps have the ten-second allowance documented in
+the [APT configuration manual](https://manpages.ubuntu.com/manpages/noble/man5/apt.conf.5.html).
+Checks run after signature verification, after index decoding and during execution
+review. Passing time is not included in the review fingerprint, so an unchanged
+valid review remains identical while expired metadata still blocks execution.
+Duplicate, malformed, folded or inverted time fields fail closed. No package,
+source, user preference or catalog entry can disable this fixed review policy.
+The initial normal-cache run exposed space-padded single-digit hours in signed
+Ubuntu backports/security metadata. The parser and deterministic tests now cover
+that native format, including space-padded days, before the final snapshot runs.
+
+The [signed-time authentication report](evidence/apt-ubuntu24.04-x86_64-time-auth-2026-11-17.json)
+uses real signed noble/main metadata with an injected reader clock eleven seconds
+before its signed creation date. New planning and stale approval were rejected
+without refresh or mutation dispatch. Restoring the real clock restored the same
+review. Cached release/index corruption, fresh signature authentication, removed
+keys and signed-payload tampering also passed in this profile.
+
+The native static archive omits `Valid-Until`; the report records that absence.
+Expiry boundaries and expiry during decoding are deterministic unit tests, not
+native expiry evidence. Static releases without an expiry remain usable with no
+maximum age. Replay policy for such archives, independent clock trust, vendor-key
+provenance and key expiry/revocation policy remain open.
+
+The same tested snapshot passed the
+[CMake install/verify/remove smoke](evidence/apt-ubuntu24.04-x86_64-time-smoke-2026-11-17.json)
+against normal compressed caches. Reports remain explicitly unqualified; no
+production mutation gate is enabled. The owned Ubuntu 24.04 x86_64 container has
+no mounts or ports and was removed after testing; host packages and personal WSL
+are untouched. Native elevation,
+DPKG interruption and macOS/cask qualification still prevent completing step 16.
+
 ## Repeat the local APT profiles
 
 From a reviewed committed checkout with Docker's Linux engine running, the
@@ -420,7 +457,8 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
    One-byte signed-payload tampering was rejected with `BADSIG` before package
    index retrieval. Cached release signatures now reject altered bytes before
    planning/dispatch. Decoded package indexes now match authenticated checksums
-   and sizes; corrupted indexes block fresh/stale plans. Freshness/key policy and
+   and sizes; corrupted indexes block fresh/stale plans. Signed creation/expiry
+   bounds are checked again before dispatch. Replay policy without expiry, key policy and
    Homebrew cases remain open.
    Resolve any real parser/output limits.
 6. Review evidence per backend, source, OS/release, architecture, native version
@@ -442,19 +480,18 @@ evidence. No dependency or release-publishing change is introduced.
 ## Local validation (2026-11-17)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **598 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **606 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (182 files), mypy passed (108 source files), and catalog
+Ruff lint/format passed (185 files), mypy passed (110 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **177 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **185 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-TMPDIR=/tmp/dev-setup-core-tests python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_apt_cache tests.unit.test_apt_indexes tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+TMPDIR=/tmp/dev-setup-core-tests python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_apt_cache tests.unit.test_apt_indexes tests.unit.test_apt_freshness tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
 These core tests use synthetic mutations; they complement the seven real APT profiles.
-The dedicated temporary directory isolates their native coordination locks. An
-initial shared-lock run was interrupted because it contended with the real smoke.
+The dedicated temporary directory isolates their native coordination locks.
 Qt and the full Linux dependency matrix were not exercised by this subset.

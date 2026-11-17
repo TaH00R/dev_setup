@@ -334,7 +334,7 @@ def main(argv: list[str] | None = None) -> int:
     profiles.add_argument(
         "--apt-auth",
         action="store_true",
-        help="Test fresh/cached release signatures, removed keys and loopback tampering; metadata only.",
+        help="Test fresh/cached metadata signatures, index integrity, signed times and removed keys; metadata only.",
     )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)

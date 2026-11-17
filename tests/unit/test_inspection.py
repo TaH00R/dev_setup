@@ -74,7 +74,7 @@ class InspectionTests(unittest.TestCase):
         self.helper = Path(find("apt-helper"))
         index_data = self.index.read_bytes()
         self.release.write_bytes(
-            b"-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA512\n\nOrigin: Ubuntu\nCodename: noble\nSHA256:\n"
+            b"-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA512\n\nOrigin: Ubuntu\nCodename: noble\nDate: Thu, 25 Apr 2024 15:10:33 UTC\nSHA256:\n"
             + f" {hashlib.sha256(index_data).hexdigest()} {len(index_data)} main/binary-amd64/Packages\n".encode()
             + b"-----BEGIN PGP SIGNATURE-----\nSynthetic signature\n-----END PGP SIGNATURE-----\n"
         )

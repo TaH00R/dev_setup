@@ -40,7 +40,7 @@ jobs:
         run: python3 -m scripts.qualify_native --backend apt --apt-sources --approve-native-changes --output native-apt-sources.json
       - name: Reject stale approval after private signing-key changes
         run: python3 -m scripts.qualify_native --backend apt --apt-keys --approve-native-changes --output native-apt-keys.json
-      - name: Authenticate fresh and cached metadata and reject tampering
+      - name: Authenticate metadata integrity and signed time bounds
         run: python3 -m scripts.qualify_native --backend apt --apt-auth --approve-native-changes --output native-apt-auth.json
       - uses: actions/upload-artifact@v4
         if: always()

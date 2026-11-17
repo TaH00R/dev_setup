@@ -7,14 +7,18 @@ by a cryptographically valid signature against an explicitly configured keyring.
 import hashlib
 import json
 import re
+from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from threading import Event
 
 from models.errors import ErrorCode
+from models.planning import utc_now
 from models.specs import InstallSpec
 from system.identity import IdentityError, bind, revalidate
 from system.runner import CommandRunner
 
+from .apt_freshness import validate_freshness
 from .apt_indexes import index_fingerprint
 from .apt_trust import _keys, _read
 from .base import AdapterError, BackendAction, PackageManager
@@ -115,6 +119,7 @@ def cache_fingerprint(
     key_roots: tuple[Path, ...],
     list_roots: tuple[Path, ...],
     helper_path: Path = Path("/usr/lib/apt/apt-helper"),
+    clock: Callable[[], datetime] = utc_now,
 ) -> str:
     verifier = adapter.find("gpgv")
     if verifier is None or not Path(verifier).is_absolute():
@@ -176,6 +181,7 @@ def cache_fingerprint(
             ):
                 raise _fail()
             revalidate(command, environment=dict(command.environment))
+            validate_freshness(content, clock())
         except IdentityError:
             raise _fail() from None
         records.append(
@@ -198,6 +204,8 @@ def cache_fingerprint(
         list_roots=list_roots,
         helper_path=helper_path,
     )
+    for content in release_content.values():
+        validate_freshness(content, clock())
     return hashlib.sha256(
         json.dumps((records, indexes), sort_keys=True).encode()
     ).hexdigest()

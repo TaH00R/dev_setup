@@ -81,9 +81,25 @@ Stored indexes are limited to 256 MiB each; decoded output is limited to 512 MiB
 per index and 2 GiB per verification pass. Exceeding a bound fails closed.
 Missing helpers affect install/upgrade review, not inventory or removal.
 
+Signed `Date` and optional `Valid-Until` fields are checked after signature
+verification and again after index decoding, using the UTC system clock.
+Install/upgrade reviews reject creation dates more than ten seconds ahead and
+declared expiries in the past. Missing, duplicate, folded, malformed or inverted
+time fields fail closed; supported timestamps use English RFC-style UTC, GMT or
+`+0000`, including native space-padded days/hours. Execution repeats these checks
+even when all cached files are unchanged, rejecting expired metadata at review.
+Inventory and removal are unaffected.
+Tests may inject the reader clock; no catalog field or desktop preference can.
+
+The ten-second allowance follows the
+[APT defaults](https://manpages.ubuntu.com/manpages/noble/man5/apt.conf.5.html).
+Static base releases without `Valid-Until` remain supported with no invented
+maximum age. This does not establish replay protection for archives lacking an
+expiry, clock correctness or a complete repository freshness policy.
+
 This authenticates release signatures and index checksums against configured
-keys. Release freshness, vendor-key provenance and independent key
-expiry/revocation policy remain follow-up work. In particular,
+keys and enforces declared release time bounds. Vendor-key provenance and
+independent key expiry/revocation policy remain follow-up work. In particular,
 [gpgv trusts the supplied keyring and does not assess key expiry or revocation](https://www.gnupg.org/documentation/manuals/gnupg/gpgv.html).
 External native processes can still change inputs after the final snapshot.
 Native APT security checks remain required, and production gates remain disabled.

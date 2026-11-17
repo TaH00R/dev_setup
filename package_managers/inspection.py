@@ -7,7 +7,9 @@ the application can orchestrate mutations through them.
 import hashlib
 import json
 import re
+from collections.abc import Callable
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from threading import Event
 from typing import Any
@@ -15,7 +17,7 @@ from typing import Any
 from models.errors import ErrorCode
 from models.inventory import InstalledPackage, Inventory, NativeReview
 from models.package import PackageVersion
-from models.planning import OperationAction
+from models.planning import OperationAction, utc_now
 from models.specs import InstallSpec
 from system.commands import Command
 from system.runner import CommandRunner
@@ -222,11 +224,13 @@ class APTInspector(NativeInspector):
         ),
         list_roots: tuple[Path, ...] = (Path("/var/lib/apt/lists"),),
         helper_path: Path = Path("/usr/lib/apt/apt-helper"),
+        clock: Callable[[], datetime] = utc_now,
     ) -> None:
         super().__init__(adapter, runner)
         self.source_roots, self.key_roots = source_roots, key_roots
         self.list_roots = list_roots
         self.helper_path = helper_path
+        self.clock = clock
 
     def _trust(self, path: str, spec: InstallSpec, cancel: Event | None) -> str:
         entries = self.read(
@@ -268,6 +272,7 @@ class APTInspector(NativeInspector):
             key_roots=self.key_roots,
             list_roots=self.list_roots,
             helper_path=self.helper_path,
+            clock=self.clock,
         )
         return _digest((trust, authenticated))
 

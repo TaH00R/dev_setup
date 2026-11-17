@@ -228,4 +228,7 @@ def exercise_apt_auth(
     from scripts.apt_cached_checks import exercise_cached_release
 
     exercise_cached_release(services, checks, trusted)
+    from scripts.apt_time_checks import exercise_cached_time
+
+    exercise_cached_time(services, checks, trusted)
     checks["phase"] = "complete"
