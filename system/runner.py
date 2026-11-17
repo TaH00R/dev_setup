@@ -1,5 +1,6 @@
 """Blocking worker-side process runner with bounded pipes and cancellation."""
 
+import hashlib
 import os
 import platform
 import queue
@@ -249,6 +250,8 @@ class CommandRunner:
             for name, pipe in (("stdout", process.stdout), ("stderr", process.stderr))
         ]
         buffers = {"stdout": bytearray(), "stderr": bytearray()}
+        digest = hashlib.sha256() if command.stdout_sha256_limit is not None else None
+        digest_size = 0
         truncated = {"stdout": False, "stderr": False}
         ended = 0
         deadline = time.monotonic() + command.timeout_seconds
@@ -294,6 +297,17 @@ class CommandRunner:
                     continue
                 if chunk is None:
                     ended += 1
+                    continue
+                if name == "stdout" and digest is not None:
+                    assert command.stdout_sha256_limit is not None
+                    if digest_size + len(chunk) > command.stdout_sha256_limit:
+                        error = OperationError(
+                            ErrorCode.COMMAND_FAILED,
+                            "Decoded output exceeded its reviewed byte limit.",
+                        )
+                        break
+                    digest.update(chunk)
+                    digest_size += len(chunk)
                     continue
                 available = self.capture_bytes - len(buffers[name])
                 previously_truncated = truncated[name]
@@ -385,4 +399,8 @@ class CommandRunner:
             output_truncated=any(truncated.values()),
             error=error,
             diagnostics=tuple(diagnostics),
+            stdout_sha256=digest.hexdigest()
+            if digest is not None and error is None
+            else None,
+            stdout_size=digest_size if digest is not None and error is None else None,
         )

@@ -15,6 +15,7 @@ from models.specs import InstallSpec
 from system.identity import IdentityError, bind, revalidate
 from system.runner import CommandRunner
 
+from .apt_indexes import index_fingerprint
 from .apt_trust import _keys, _read
 from .base import AdapterError, BackendAction, PackageManager
 
@@ -26,12 +27,12 @@ def _fail() -> AdapterError:
     )
 
 
-def cached_releases(entries: str) -> tuple[tuple[Path, Path], ...]:
+def cached_indexes(entries: str) -> tuple[tuple[Path, str, Path, Path], ...]:
     """Map reviewed component/binary index names back to their cached release."""
     rows = entries.splitlines()
     if not rows or len(rows) > 512:
         raise _fail()
-    releases = set()
+    indexes = set()
     for row in rows:
         fields = row.split("|")
         if len(fields) != 3:
@@ -55,7 +56,14 @@ def cached_releases(entries: str) -> tuple[tuple[Path, Path], ...]:
         prefix = name[: -len(suffix)]
         if re.fullmatch(r".+_dists_[A-Za-z0-9][A-Za-z0-9+._-]*", prefix) is None:
             raise _fail()
-        releases.add((index.with_name(prefix + "_InRelease"), Path(source[1])))
+        indexes.add(
+            (index, meta, index.with_name(prefix + "_InRelease"), Path(source[1]))
+        )
+    return tuple(sorted(indexes))
+
+
+def cached_releases(entries: str) -> tuple[tuple[Path, Path], ...]:
+    releases = {(release, source) for _, _, release, source in cached_indexes(entries)}
     if len(releases) > 128:
         raise _fail()
     return tuple(sorted(releases))
@@ -106,6 +114,7 @@ def cache_fingerprint(
     source_roots: tuple[Path, ...],
     key_roots: tuple[Path, ...],
     list_roots: tuple[Path, ...],
+    helper_path: Path = Path("/usr/lib/apt/apt-helper"),
 ) -> str:
     verifier = adapter.find("gpgv")
     if verifier is None or not Path(verifier).is_absolute():
@@ -113,6 +122,7 @@ def cache_fingerprint(
             ErrorCode.MISSING_BACKEND, "APT signed-cache review requires native gpgv."
         )
     records = []
+    release_content = {}
     total = 0
     for release, source in cached_releases(entries):
         manifest = _read(source, source_roots)
@@ -177,4 +187,17 @@ def cache_fingerprint(
                 ),
             )
         )
-    return hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()
+        release_content[release] = content
+    indexes = index_fingerprint(
+        adapter,
+        runner,
+        spec,
+        cached_indexes(entries),
+        release_content,
+        cancel,
+        list_roots=list_roots,
+        helper_path=helper_path,
+    )
+    return hashlib.sha256(
+        json.dumps((records, indexes), sort_keys=True).encode()
+    ).hexdigest()

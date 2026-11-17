@@ -221,10 +221,12 @@ class APTInspector(NativeInspector):
             Path("/usr/share/keyrings"),
         ),
         list_roots: tuple[Path, ...] = (Path("/var/lib/apt/lists"),),
+        helper_path: Path = Path("/usr/lib/apt/apt-helper"),
     ) -> None:
         super().__init__(adapter, runner)
         self.source_roots, self.key_roots = source_roots, key_roots
         self.list_roots = list_roots
+        self.helper_path = helper_path
 
     def _trust(self, path: str, spec: InstallSpec, cancel: Event | None) -> str:
         entries = self.read(
@@ -265,6 +267,7 @@ class APTInspector(NativeInspector):
             source_roots=self.source_roots,
             key_roots=self.key_roots,
             list_roots=self.list_roots,
+            helper_path=self.helper_path,
         )
         return _digest((trust, authenticated))
 

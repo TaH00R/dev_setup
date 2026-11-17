@@ -1,5 +1,6 @@
 """Run only disposable Python children; never execute a package manager."""
 
+import hashlib
 import platform
 import subprocess
 import sys
@@ -29,6 +30,69 @@ def fixture_command(code="print('ok')", **kwargs):
 
 
 class CommandRunnerTests(unittest.TestCase):
+    def test_stream_hashes_binary_output_without_capture_or_observer_disclosure(self):
+        data = bytes(range(256)) * 2048
+        events = []
+        result = CommandRunner(capture_bytes=32).run(
+            fixture_command(
+                "import sys;sys.stdout.buffer.write(bytes(range(256))*2048)",
+                stdout_sha256_limit=len(data),
+            ),
+            observe=events.append,
+        )
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.stdout_sha256, hashlib.sha256(data).hexdigest())
+        self.assertEqual(result.stdout_size, len(data))
+        self.assertEqual(result.stdout, "")
+        self.assertFalse(result.output_truncated)
+        self.assertFalse(any(event.stream == "stdout" for event in events))
+
+    def test_stream_hash_bound_failure_and_nonzero_exit_never_expose_partial_digest(
+        self,
+    ):
+        for code, limit in (
+            ("import sys;sys.stdout.buffer.write(b'x'*1000000)", 64),
+            ("import sys;print('data');sys.exit(7)", 64),
+        ):
+            result = CommandRunner().run(
+                fixture_command(code, stdout_sha256_limit=limit)
+            )
+            self.assertEqual(result.error.code, ErrorCode.COMMAND_FAILED)
+            self.assertIsNone(result.stdout_sha256)
+            self.assertIsNone(result.stdout_size)
+            self.assertEqual(result.stdout, "")
+
+    def test_stream_hash_empty_data_and_invalid_limits(self):
+        result = CommandRunner().run(fixture_command("pass", stdout_sha256_limit=0))
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.stdout_size, 0)
+        self.assertEqual(result.stdout_sha256, hashlib.sha256(b"").hexdigest())
+        for limit in (-1, True, 512 * 1024 * 1024 + 1):
+            with self.assertRaises(ValueError):
+                fixture_command(stdout_sha256_limit=limit)
+
+    def test_stream_hash_timeout_and_cancellation_discard_partial_digest(self):
+        code = (
+            "import sys,time;sys.stdout.write('data');sys.stdout.flush();time.sleep(10)"
+        )
+        result = CommandRunner().run(
+            fixture_command(code, stdout_sha256_limit=64, timeout_seconds=0.15)
+        )
+        self.assertEqual(result.error.code, ErrorCode.TIMEOUT)
+        self.assertIsNone(result.stdout_sha256)
+        cancel = threading.Event()
+        timer = threading.Timer(0.15, cancel.set)
+        timer.start()
+        try:
+            result = CommandRunner().run(
+                fixture_command(code, stdout_sha256_limit=64), cancel=cancel
+            )
+        finally:
+            timer.join()
+        self.assertEqual(result.error.code, ErrorCode.CANCELLED)
+        self.assertIsNone(result.stdout_sha256)
+        self.assertEqual(result.stdout, "")
+
     def test_command_preview_masks_separate_credential_option_values(self):
         command = replace(
             fixture_command(),

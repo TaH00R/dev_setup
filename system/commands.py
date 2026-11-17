@@ -56,8 +56,16 @@ class Command:
     environment: tuple[tuple[str, str], ...] = field(default=(), repr=False)
     launch_paths: tuple[str, ...] = field(default=(), repr=False)
     launch_files: tuple[LaunchFile, ...] = field(default=(), repr=False)
+    stdout_sha256_limit: int | None = None
 
     def __post_init__(self) -> None:
+        if self.stdout_sha256_limit is not None and (
+            type(self.stdout_sha256_limit) is not int
+            or not 0 <= self.stdout_sha256_limit <= 512 * 1024 * 1024
+        ):
+            raise ValueError(
+                "stream hashing requires a byte limit between zero and 512 MiB"
+            )
         if not isinstance(self.argv, tuple) or not self.argv:
             raise ValueError("command requires an immutable argument array")
         for argument in self.argv:
@@ -164,6 +172,8 @@ class CommandResult:
     output_truncated: bool = False
     error: OperationError | None = None
     diagnostics: tuple[DiagnosticEvent, ...] = field(default=(), repr=False)
+    stdout_sha256: str | None = field(default=None, repr=False)
+    stdout_size: int | None = None
 
     @property
     def succeeded(self) -> bool:

@@ -120,6 +120,13 @@ never by a Qt widget's GUI-thread slot. It uses `Popen` argument arrays with
 are refused; the authorized Scoop bridge has an explicit native host. The
 runner rejects execution on a different target OS.
 
+An optional `stdout_sha256_limit` enables binary hash-only output for native APT
+index decoding. The runner checks the byte bound while draining and returns only
+SHA-256 and decoded size after successful completion and cleanup. No stdout
+payload reaches capture buffers or observers. Bounds are 0 through 512 MiB;
+overflow, cancellation, timeout or command failure returns no partial digest.
+Stderr retains the usual bounded capture and redaction behavior.
+
 Both output pipes drain concurrently in 4 KiB chunks through a bounded queue.
 Each stream retains at most 65,536 bytes by default; capture continues draining
 after truncation so verbose tools cannot deadlock on full pipes. Results expose

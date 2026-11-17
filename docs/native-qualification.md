@@ -306,10 +306,42 @@ key copy at a different declared path still requires a new review. Original
 system caches/configuration were not corrupted, and the owned container was
 removed after testing.
 
-This authenticates cached release signatures only. Package-index checksum
-linkage, freshness and independent key expiry/revocation policy remain open.
+That snapshot authenticated cached release signatures only. The next report
+adds package-index checksum linkage; freshness and independent key
+expiry/revocation policy remain open.
 The GnuPG verifier assumes the explicitly supplied keys are trusted. No backend
 scope is fully qualified and no production mutation gate is enabled.
+
+## Retained APT package-index integrity evidence (2026-11-17)
+
+A native probe against the previous snapshot reproduced a ready plan after one
+cached CMake description byte changed. Release signatures remained valid: they
+authenticate checksums, so the decoded package indexes also need verification.
+Review now requires the exact uncompressed metadata key, SHA-256 and decoded
+size from an already authenticated release. Native APT 2.8.4 `apt-helper cat-file`
+decodes the input; bounded streaming hashing adds no Python dependency or shell
+pipeline. Helper and input identities are checked around execution.
+
+The [index authentication report](evidence/apt-ubuntu24.04-x86_64-index-auth-2026-11-17.json)
+records corruption rejection for new plans and stale approval without mutation
+dispatch or cache refresh. Restoring the original bytes restored the same review.
+The fault changes one description byte in the isolated uncompressed noble/main
+amd64 index. Fresh signed-index authentication, removed-key rejection, cached
+release corruption and loopback signed-payload tampering also passed.
+
+The same source snapshot passed
+[CMake install/remove smoke](evidence/apt-ubuntu24.04-x86_64-index-smoke-2026-11-17.json),
+[key drift](evidence/apt-ubuntu24.04-x86_64-index-keys-2026-11-17.json),
+[origin](evidence/apt-ubuntu24.04-x86_64-index-origins-2026-11-17.json) and
+[source URL](evidence/apt-ubuntu24.04-x86_64-index-sources-2026-11-17.json) checks.
+The smoke uses the image's normal compressed LZ4 package indexes. Reports remain
+bounded, output-free and explicitly unqualified. Tests use an owned disposable
+container without mounts or ports; host packages and personal WSL are untouched.
+
+Freshness, vendor-key provenance, independent expiry/revocation policy, native
+elevation, DPKG interruption and macOS/cask qualification remain open. There is
+still a race against external changes after the final snapshot. Production
+mutations remain disabled and milestone 16 remains unchecked.
 
 ## Repeat the local APT profiles
 
@@ -387,7 +419,8 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
    indexes were accepted with the current key and rejected with removed keys.
    One-byte signed-payload tampering was rejected with `BADSIG` before package
    index retrieval. Cached release signatures now reject altered bytes before
-   planning/dispatch. Package-index checksum linkage, freshness/key policy and
+   planning/dispatch. Decoded package indexes now match authenticated checksums
+   and sizes; corrupted indexes block fresh/stale plans. Freshness/key policy and
    Homebrew cases remain open.
    Resolve any real parser/output limits.
 6. Review evidence per backend, source, OS/release, architecture, native version
@@ -406,20 +439,22 @@ documents the early `APT_CONFIG` bootstrap used for private refreshes.
 These references describe environments and commands; they are not project test
 evidence. No dependency or release-publishing change is introduced.
 
-## Local validation (2026-11-16)
+## Local validation (2026-11-17)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **585 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **598 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (180 files), mypy passed (107 source files), and catalog
+Ruff lint/format passed (182 files), mypy passed (108 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **164 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **177 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_apt_cache tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+TMPDIR=/tmp/dev-setup-core-tests python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_apt_cache tests.unit.test_apt_indexes tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
 These core tests use synthetic mutations; they complement the seven real APT profiles.
+The dedicated temporary directory isolates their native coordination locks. An
+initial shared-lock run was interrupted because it contended with the real smoke.
 Qt and the full Linux dependency matrix were not exercised by this subset.

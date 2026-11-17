@@ -9,6 +9,7 @@ from urllib.request import ProxyHandler, build_opener
 from models.errors import ErrorCode, OperationError
 from models.planning import CommandPreview, utc_now
 from scripts.apt_auth_checks import has_indexes, require_signature_rejection
+from scripts.apt_cached_checks import tamper_index
 from scripts.apt_tamper_checks import (
     prepare_tampered_scope,
     serve_release,
@@ -25,6 +26,24 @@ RELEASE = (
 
 
 class APTTamperChecksTests(unittest.TestCase):
+    def test_index_fault_changes_one_description_byte_in_only_the_fixed_package(self):
+        data = b"Package: other\nDescription: untouched\n\nPackage: cmake\nVersion: 1.0\nDescription: cmake description\n\n"
+        altered = tamper_index(data)
+        self.assertEqual(len(altered), len(data))
+        self.assertEqual(sum(a != b for a, b in zip(data, altered)), 1)
+        self.assertIn(b"Package: other\nDescription: untouched", altered)
+        self.assertIn(b"Package: cmake\nVersion: 1.0\nDescription: Xmake", altered)
+
+    def test_index_fault_refuses_missing_package_or_description(self):
+        for data in (
+            b"Package: other\nDescription: data\n",
+            b"Package: cmake\nVersion: 1\n",
+            b"Package: cmake\nDescription: \n\n",
+        ):
+            with self.subTest(data=data):
+                with self.assertRaises(ValueError):
+                    tamper_index(data)
+
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)

@@ -9,7 +9,8 @@ rejection against an existing private cache also passed. Signing-key
 content/reference drift now invalidates stale approval as well. Fresh signed
 indexes were accepted with current keys and rejected with removed keys. Altered
 signed payloads were rejected with `BADSIG`. Cached release signatures now block
-corrupted-cache plans and stale approval as well. Native elevation,
+corrupted-cache plans and stale approval as well. Package indexes are now decoded
+and checked against authenticated release SHA-256 and size entries. Native elevation,
 DPKG transaction cancellation and macOS qualification remain open. Metadata
 matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
@@ -60,8 +61,10 @@ adds `BADSIG` rejection of an altered signed release before package index retrie
 The [cached-release reports](native-qualification.md#retained-apt-cached-release-authentication-evidence-2026-11-16)
 add offline signature verification before install/upgrade review and stale-approval
 rejection after cached-release corruption. The tested verifier is gpgv 2.4.4.
+The [index reports](native-qualification.md#retained-apt-package-index-integrity-evidence-2026-11-17)
+add cached package-index checksum/size verification and corruption rejection.
 Hosted jobs have not been dispatched here. Elevation, cancellation during DPKG
-transactions, package-index checksum linkage, freshness/key-validity policy, macOS
+transactions, freshness/key-validity policy, macOS
 and cask qualification remain open. Milestone 16 remains unchecked.
 
 ## Adapter command capabilities (not production enablement)

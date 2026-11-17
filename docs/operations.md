@@ -71,8 +71,18 @@ pass. Missing `gpgv` blocks install/upgrade review; inventory, verification and
 removal review do not require it. The tested Ubuntu image already includes gpgv;
 no Python dependency or automatic utility installation was added.
 
-This authenticates release signatures against configured keys. Package-index
-checksum linkage, release freshness, vendor-key provenance and independent key
+After signature verification, review matches each native binary index's exact
+uncompressed metadata key against the authenticated release's SHA-256 and size.
+The installed `/usr/lib/apt/apt-helper` decodes cached indexes, including LZ4;
+the runner hashes its output without retaining or streaming package contents.
+Both the helper and input are bound and revalidated after decoding. Missing
+checksums, altered bytes, incomplete output and missing helpers block review.
+Stored indexes are limited to 256 MiB each; decoded output is limited to 512 MiB
+per index and 2 GiB per verification pass. Exceeding a bound fails closed.
+Missing helpers affect install/upgrade review, not inventory or removal.
+
+This authenticates release signatures and index checksums against configured
+keys. Release freshness, vendor-key provenance and independent key
 expiry/revocation policy remain follow-up work. In particular,
 [gpgv trusts the supplied keyring and does not assess key expiry or revocation](https://www.gnupg.org/documentation/manuals/gnupg/gpgv.html).
 External native processes can still change inputs after the final snapshot.

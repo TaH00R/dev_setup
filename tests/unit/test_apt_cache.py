@@ -29,6 +29,7 @@ class APTCacheTests(unittest.TestCase):
             source_roots=(self.fixture.root,),
             key_roots=(self.fixture.root,),
             list_roots=(self.fixture.cache,),
+            helper_path=self.fixture.helper,
         )
 
     def test_native_component_index_mapping_is_bounded_and_deduplicated(self):
@@ -49,7 +50,11 @@ class APTCacheTests(unittest.TestCase):
 
     def test_exact_read_only_verifier_uses_only_explicit_bound_inputs(self):
         before = self.snapshot()
-        command = self.fixture.runner.run.call_args.args[0]
+        command = next(
+            call.args[0]
+            for call in self.fixture.runner.run.call_args_list
+            if call.args[0].argv[0] == self.fixture.apt.find("gpgv")
+        )
         self.assertEqual(
             command.argv,
             (

@@ -1,5 +1,6 @@
 """Offline native format contracts and conservative failure behavior."""
 
+import hashlib
 import json
 import tempfile
 import unittest
@@ -69,8 +70,13 @@ class InspectionTests(unittest.TestCase):
             / "archive.ubuntu.com_ubuntu_dists_noble_main_binary-amd64_Packages.lz4"
         )
         self.release = self.cache / "archive.ubuntu.com_ubuntu_dists_noble_InRelease"
+        self.index.write_bytes(b"Synthetic native package index\n")
+        self.helper = Path(find("apt-helper"))
+        index_data = self.index.read_bytes()
         self.release.write_bytes(
-            b"-----BEGIN PGP SIGNED MESSAGE-----\nSynthetic signed release; never actually verified."
+            b"-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA512\n\nOrigin: Ubuntu\nCodename: noble\nSHA256:\n"
+            + f" {hashlib.sha256(index_data).hexdigest()} {len(index_data)} main/binary-amd64/Packages\n".encode()
+            + b"-----BEGIN PGP SIGNATURE-----\nSynthetic signature\n-----END PGP SIGNATURE-----\n"
         )
         self.gpg_status = (
             "[GNUPG:] VALIDSIG " + "A" * 40 + " 2026-01-01 1767225600 0 4 0 1 10 01\n"
@@ -81,6 +87,7 @@ class InspectionTests(unittest.TestCase):
             source_roots=(self.root,),
             key_roots=(self.root,),
             list_roots=(self.cache,),
+            helper_path=self.helper,
         )
         self.formula = {
             "name": "git",
@@ -152,6 +159,13 @@ class InspectionTests(unittest.TestCase):
             output = self.dpkg
         elif Path(argv[0]).name == "gpgv":
             output = self.gpg_status
+        elif Path(argv[0]).name == "apt-helper":
+            data = Path(argv[-1]).read_bytes()
+            return replace(
+                self.result(command, ""),
+                stdout_sha256=hashlib.sha256(data).hexdigest(),
+                stdout_size=len(data),
+            )
         elif "indextargets" in argv:
             output = (
                 f"{self.index}|main/binary-amd64/Packages|{self.source}:1\n"
@@ -339,6 +353,33 @@ class InspectionTests(unittest.TestCase):
         with self.assertRaises(AdapterError) as caught:
             self.apt_reader.review(self.spec("apt"), Action.INSTALL)
         self.assertEqual(caught.exception.error.code, ErrorCode.MISSING_BACKEND)
+
+    def test_package_index_corruption_blocks_new_and_stale_plans_and_restores(self):
+        planner = Planner(self.catalog, self.linux, (self.apt_reader,))
+        reviewed = planner.preview((PackageRequest("git", Action.UPGRADE),))
+        self.assertTrue(reviewed.plan.ready)
+        original = self.index.read_bytes()
+        self.index.write_bytes(b"Corrupted cached package index")
+        self.assertFalse(
+            planner.preview((PackageRequest("git", Action.UPGRADE),)).plan.ready
+        )
+        report = OperationService((self.apt_reader,), self.runner).execute(
+            reviewed, consent=PlanConsent(reviewed, True, True)
+        )
+        self.assertEqual(
+            report.operations[0].result.error.code, ErrorCode.VERIFICATION_FAILED
+        )
+        self.assertIsNone(report.operations[0].result.exit_code)
+        self.assertTrue(
+            all(not call.args[0].mutates for call in self.runner.run.call_args_list)
+        )
+        self.index.write_bytes(original)
+        self.assertEqual(
+            planner.preview((PackageRequest("git", Action.UPGRADE),))
+            .prepared[0]
+            .review,
+            reviewed.prepared[0].review,
+        )
 
     def test_apt_unreviewed_origin_and_ambiguous_candidates_are_rejected(self):
         original = self.origins
