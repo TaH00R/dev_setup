@@ -11,8 +11,9 @@ indexes were accepted with current keys and rejected with removed keys. Altered
 signed payloads were rejected with `BADSIG`. Cached release signatures now block
 corrupted-cache plans and stale approval as well. Package indexes are now decoded
 and checked against authenticated release SHA-256 and size entries. Signed release
-dates and declared expiries are checked again before execution. Native elevation,
-DPKG transaction cancellation and macOS qualification remain open. Metadata
+dates and declared expiries are checked again before execution. Controlled DPKG
+unpack cancellation now has partial-state refusal evidence. Native elevation,
+repair, broader transaction cancellation and macOS qualification remain open. Metadata
 matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
 
@@ -67,8 +68,11 @@ add cached package-index checksum/size verification and corruption rejection.
 The [signed-time reports](native-qualification.md#retained-apt-signed-time-evidence-2026-11-17)
 add controlled-clock future-date rejection against real signed metadata. Declared
 expiry boundaries are unit-tested; the static native fixture has no expiry field.
-Hosted jobs have not been dispatched here. Elevation, cancellation during DPKG
-transactions, replay policy for archives without expiry, key-validity policy, macOS
+The [DPKG fault report](native-qualification.md#retained-apt-dpkg-interruption-evidence-2026-11-17)
+adds a controlled unpack interruption with partial inventory and blocked recovery;
+it does not qualify native repair or post-repair retry.
+Hosted jobs have not been dispatched here. Elevation, broader DPKG transaction
+cancellation/repair, replay policy for archives without expiry, key-validity policy, macOS
 and cask qualification remain open. Milestone 16 remains unchecked.
 
 ## Adapter command capabilities (not production enablement)

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       approve_native_changes:
-        description: 'Approve package changes and private signed-index refreshes on disposable hosted runners only'
+        description: 'Approve package changes, private index refreshes and controlled DPKG interruption on disposable hosted runners only'
         type: boolean
         required: true
         default: false
@@ -54,6 +54,29 @@ jobs:
             native-apt-sources.json
             native-apt-keys.json
             native-apt-auth.json
+          if-no-files-found: warn
+  apt-dpkg:
+    if: ${{ inputs.approve_native_changes }}
+    runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+      options: --init
+    timeout-minutes: 20
+    steps:
+      - name: Prepare isolated disposable DPKG fault image
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install --yes python3 ca-certificates
+      - uses: actions/checkout@v4
+      - name: Cancel controlled DPKG unpack and reject unverified recovery
+        run: python3 -m scripts.qualify_native --backend apt --apt-dpkg --approve-native-changes --output native-apt-dpkg.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-apt-dpkg-pending
+          path: native-apt-dpkg.json
           if-no-files-found: warn
   homebrew:
     if: ${{ inputs.approve_native_changes }}

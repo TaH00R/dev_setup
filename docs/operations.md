@@ -225,6 +225,11 @@ clean-machine integration remain unverified.
 ## Durable lifecycle and recovery
 
 Current durability additions are described in [operation lifecycle and recovery](lifecycle.md).
+The [native DPKG fault](native-qualification.md#retained-apt-dpkg-interruption-evidence-2026-11-17)
+checks cancellation during a controlled unpack. Partial native inventory is
+unavailable rather than verified; even explicit acknowledgement cannot reconcile
+an unverified state, and the durable record continues blocking retry. No native
+repair or rollback is performed. The disposable fault container is discarded.
 Package/runtime workers commit reviewed identity and phase evidence before native
 dispatch. Execution reports expose an aggregate plan outcome separately from item
 results and expose persistence warnings separately from native success/failure.

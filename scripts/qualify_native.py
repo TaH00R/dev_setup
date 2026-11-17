@@ -307,6 +307,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--approve-native-changes", action="store_true")
     profiles = parser.add_mutually_exclusive_group()
     profiles.add_argument(
+        "--apt-dpkg",
+        action="store_true",
+        help="Cancel a controlled native DPKG unpack; leaves partial state requiring container disposal.",
+    )
+    profiles.add_argument(
         "--apt-upgrade",
         action="store_true",
         help="Test real older-to-current Git upgrade from reviewed Ubuntu repositories.",
@@ -339,7 +344,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     if (
-        args.apt_upgrade
+        args.apt_dpkg
+        or args.apt_upgrade
         or args.apt_failures
         or args.apt_origins
         or args.apt_sources
@@ -375,7 +381,9 @@ def main(argv: list[str] | None = None) -> int:
         else platform.mac_ver()[0],
         "recorded_at": utc_now().isoformat(),
         "checks": checks,
-        "profile": "apt-auth"
+        "profile": "apt-dpkg"
+        if args.apt_dpkg
+        else "apt-auth"
         if args.apt_auth
         else "apt-keys"
         if args.apt_keys
@@ -410,6 +418,7 @@ def main(argv: list[str] | None = None) -> int:
                 from package_managers.apt import APT
                 from package_managers.homebrew import Homebrew
                 from package_managers.inspection import APTInspector, HomebrewInspector
+                from scripts.apt_dpkg_checks import TransactionAPT, exercise_apt_dpkg
                 from scripts.apt_failure_checks import (
                     DownloadLimitedAPT,
                     exercise_apt_failures,
@@ -417,7 +426,9 @@ def main(argv: list[str] | None = None) -> int:
 
                 runner = CommandRunner()
                 adapter = (
-                    DownloadLimitedAPT(host)
+                    TransactionAPT(host)
+                    if args.apt_dpkg
+                    else DownloadLimitedAPT(host)
                     if args.apt_failures
                     else APT(host)
                     if args.backend == "apt"
@@ -457,7 +468,14 @@ def main(argv: list[str] | None = None) -> int:
                     if args.apt_upgrade and isinstance(inspector, APTInspector)
                     else None
                 )
-                if args.apt_auth:
+                if args.apt_dpkg:
+                    with tempfile.TemporaryDirectory(
+                        prefix="dev-setup-native-dpkg-"
+                    ) as state_directory:
+                        exercise_apt_dpkg(
+                            services, checks, Path(state_directory) / "state.sqlite3"
+                        )
+                elif args.apt_auth:
                     from scripts.apt_auth_checks import exercise_apt_auth
 
                     with tempfile.TemporaryDirectory(
