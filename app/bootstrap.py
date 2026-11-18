@@ -1,4 +1,4 @@
-"""Wire the optional desktop to the existing core; no imports run native commands."""
+"""Wire the terminal interface to the existing core; no imports run native commands."""
 
 from models.diagnostics import DiagnosticCode, DiagnosticComponent
 from services.catalog.loader import load_catalog
@@ -39,51 +39,25 @@ def create_services() -> DesktopServices:
 
 
 def launch() -> int:
-    from PySide6.QtWidgets import QApplication, QMessageBox
+    import sys
 
-    from app.ui.main_window import MainWindow
+    from app.tui.app import DevSetupApp
     from system.state import default_state_path
 
-    application = QApplication.instance()
-    if application is None:
-        application = QApplication(["dev-setup"])
-    if not isinstance(application, QApplication):
-        raise RuntimeError("Desktop requires a QApplication.")
-    application.setApplicationName("Dev Setup")
-    application.setStyle("Fusion")
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        print(
+            "Open Dev Setup in an interactive terminal, or use catalog commands / --smoke-test.",
+            file=sys.stderr,
+        )
+        return 1
     try:
         services = create_services()
     except Exception:
         record_diagnostic(DiagnosticCode.STARTUP_FAILED, DiagnosticComponent.STARTUP)
-        QMessageBox.critical(
-            None,
-            "Dev Setup",
-            "The local catalog or platform could not be loaded. Diagnostic code: startup_failed. Run catalog validation to inspect the issue.",
+        print(
+            "The catalog or platform could not be loaded. Run catalog validate.",
+            file=sys.stderr,
         )
         return 1
-    window = MainWindow(services, state_path=default_state_path())
-    window.show()
-    status = application.exec()
-    # An external application.quit() can bypass the normal close-event guard.
-    # Keep the window/controller alive until their cancellable worker has stopped.
-    window.pending_close = True
-    window.controller.cancel()
-    window.environment.controller.cancel()
-    window.search_controller.cancel()
-    window.support.controller.cancel()
-    job = window.controller.job
-    if job is not None:
-        job.wait()
-    environment_job = window.environment.controller.job
-    if environment_job is not None:
-        environment_job.wait()
-    search_job = window.search_controller.job
-    if search_job is not None:
-        search_job.wait()
-    support_job = window.support.controller.job
-    if support_job is not None:
-        support_job.wait()
-    application.processEvents()
-    window.state_controller.close()
-    window.close()
-    return status
+    DevSetupApp(services, state_path=default_state_path()).run()
+    return 0

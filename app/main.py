@@ -13,10 +13,13 @@ from services.catalog.service import CatalogService
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="dev-setup",
-        description="Dev Setup: browse the catalog or open the desktop with the gui command.",
+        description="Dev Setup: manage developer tools in your terminal; bundled releases require no Python installation.",
     )
     commands = parser.add_subparsers(dest="command")
-    commands.add_parser("gui", help="Open the PySide6 desktop")
+    commands.add_parser("tui", help="Open the terminal interface")
+    from app import __version__
+
+    parser.add_argument("--version", action="version", version=__version__)
     catalog = commands.add_parser(
         "catalog", help="Read or validate local package metadata"
     )
@@ -39,27 +42,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         "legacy", help="Open the preserved installer menu (can change your system)"
     )
     args = parser.parse_args(argv)
-    if args.command is None:
+    if args.command is None and (not sys.stdin.isatty() or not sys.stdout.isatty()):
         parser.print_help()
         return 0
-    if args.command == "gui":
+    if args.command in {None, "tui"}:
         try:
             from app.bootstrap import launch
 
             return launch()
         except ModuleNotFoundError as error:
-            if error.name is None or not error.name.startswith("PySide6"):
+            if error.name is None or not error.name.startswith("textual"):
                 raise
             print(
-                "This CLI preview does not include Qt. Run the desktop from a source checkout with requirements-gui.txt."
-                if getattr(sys, "frozen", False)
-                else "The desktop needs Qt. Run: python -m pip install -r requirements-gui.txt",
+                "Source development needs requirements-tui.txt. Standalone releases bundle all runtime dependencies.",
                 file=sys.stderr,
             )
             return 1
     if args.command == "legacy":
+        if getattr(sys, "frozen", False):
+            print(
+                "The preserved legacy menu is source-only. Use the terminal workflows in this standalone build.",
+                file=sys.stderr,
+            )
+            return 1
         # Keep old dependencies and installer import side effects out of normal
-        # startup, catalog commands, and the GUI-independent core.
+        # startup, catalog commands, and the UI-independent core.
         try:
             from app.legacy.cli import main as legacy_main
         except ModuleNotFoundError as error:

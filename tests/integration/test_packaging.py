@@ -10,19 +10,19 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from scripts import build_desktop, desktop_entry, release_manifest, sign_desktop
+from scripts import build_tui, release_manifest, sign_bundle, tui_entry
 
 
 class PackagingTests(unittest.TestCase):
     def test_unattended_frozen_check_failure_returns_nonzero_without_stderr(self):
         with (
             mock.patch.object(
-                desktop_entry, "self_check", side_effect=RuntimeError("synthetic error")
+                tui_entry, "self_check", side_effect=RuntimeError("synthetic error")
             ),
             mock.patch("sys.argv", ["DevSetup", "--smoke-test"]),
             mock.patch("sys.stderr", None),
         ):
-            self.assertEqual(desktop_entry.main(), 1)
+            self.assertEqual(tui_entry.main(), 1)
 
     def test_archive_and_metadata_hardlinks_are_refused_without_modifying_target(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -30,18 +30,18 @@ class PackagingTests(unittest.TestCase):
             (root / "dist" / "DevSetup").mkdir(parents=True)
             outside = root / "external-file"
             outside.write_bytes(b"must remain unchanged")
-            host = build_desktop.detect_platform()
+            host = build_tui.detect_platform()
             suffix = ".zip" if sys.platform in {"darwin", "win32"} else ".tar.gz"
             artifact = (
                 root
                 / "dist"
-                / f"DevSetup-{build_desktop.__version__}-{host.os.value}-{host.architecture.value}{suffix}"
+                / f"DevSetup-{build_tui.__version__}-{host.os.value}-{host.architecture.value}{suffix}"
             )
             for leaf in (artifact, artifact.with_name(artifact.name + ".json")):
                 os.link(outside, leaf)
-                with mock.patch.object(build_desktop, "ROOT", root):
+                with mock.patch.object(build_tui, "ROOT", root):
                     with self.assertRaises(ValueError):
-                        build_desktop.archive_bundle()
+                        build_tui.archive_bundle()
                 self.assertEqual(outside.read_bytes(), b"must remain unchanged")
                 leaf.unlink()
 
@@ -53,10 +53,10 @@ class PackagingTests(unittest.TestCase):
             bundle = root / "dist" / "DevSetup"
             bundle.mkdir(parents=True)
             (bundle / "synthetic-not-executed.txt").write_bytes(b"bundle data")
-            with mock.patch.object(build_desktop, "ROOT", root):
-                artifact = build_desktop.archive_bundle()
+            with mock.patch.object(build_tui, "ROOT", root):
+                artifact = build_tui.archive_bundle()
                 first = artifact.read_bytes()
-                artifact = build_desktop.archive_bundle()
+                artifact = build_tui.archive_bundle()
             metadata = json.loads(
                 artifact.with_name(artifact.name + ".json").read_text(encoding="utf-8")
             )
@@ -77,9 +77,9 @@ class PackagingTests(unittest.TestCase):
                 link.symlink_to(target)
             except OSError:
                 self.skipTest("Symlink creation is unavailable on this host")
-            with mock.patch.object(build_desktop, "ROOT", root):
+            with mock.patch.object(build_tui, "ROOT", root):
                 with self.assertRaises(ValueError):
-                    build_desktop.checked_leaf(link)
+                    build_tui.checked_leaf(link)
             self.assertEqual(target.read_bytes(), b"preserve")
 
     def test_source_self_check_uses_no_native_process_or_user_state(self):
@@ -89,38 +89,36 @@ class PackagingTests(unittest.TestCase):
             ),
             mock.patch("sqlite3.connect", side_effect=AssertionError("state write")),
         ):
-            desktop_entry.self_check()
+            tui_entry.self_check()
 
     def test_preview_entry_point_reports_embedded_version(self):
         result = subprocess.run(
-            [sys.executable, "scripts/desktop_entry.py", "--version"],
+            [sys.executable, "scripts/tui_entry.py", "--version"],
             check=True,
             capture_output=True,
             text=True,
             timeout=15,
             shell=False,
         )
-        self.assertEqual(result.stdout.strip(), desktop_entry.__version__)
+        self.assertEqual(result.stdout.strip(), tui_entry.__version__)
 
     def test_cleanup_paths_reject_outside_repository_and_symlinks(self):
         with self.assertRaises(ValueError):
-            build_desktop.checked_directory(build_desktop.ROOT.parent / "outside")
+            build_tui.checked_directory(build_tui.ROOT.parent / "outside")
         with self.assertRaises(ValueError):
-            build_desktop.checked_directory(build_desktop.ROOT)
+            build_tui.checked_directory(build_tui.ROOT)
         self.assertEqual(
-            build_desktop.checked_directory(
-                build_desktop.ROOT / "build" / "test-cache"
-            ),
-            build_desktop.ROOT / "build" / "test-cache",
+            build_tui.checked_directory(build_tui.ROOT / "build" / "test-cache"),
+            build_tui.ROOT / "build" / "test-cache",
         )
 
     def test_pyinstaller_uses_scoped_cache_and_no_shell(self):
-        with mock.patch("scripts.build_desktop.subprocess.run") as run:
-            build_desktop.run(["python", "-m", "PyInstaller"])
+        with mock.patch("scripts.build_tui.subprocess.run") as run:
+            build_tui.run(["python", "-m", "PyInstaller"])
         self.assertFalse(run.call_args.kwargs["shell"])
         self.assertEqual(
             Path(run.call_args.kwargs["env"]["PYINSTALLER_CONFIG_DIR"]),
-            build_desktop.ROOT / "build" / "pyinstaller-cache",
+            build_tui.ROOT / "build" / "pyinstaller-cache",
         )
 
     def test_preview_and_mismatched_versions_cannot_be_signed(self):
@@ -131,9 +129,9 @@ class PackagingTests(unittest.TestCase):
     def test_missing_native_signing_configuration_fails_closed(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             for platform in ("win32", "darwin"):
-                with mock.patch("scripts.sign_desktop.sys.platform", platform):
+                with mock.patch("scripts.sign_bundle.sys.platform", platform):
                     with self.assertRaises(ValueError):
-                        sign_desktop.check_credentials()
+                        sign_bundle.check_credentials()
 
     def test_windows_signing_uses_thumbprint_not_password_arguments(self):
         environment = {
@@ -142,14 +140,12 @@ class PackagingTests(unittest.TestCase):
         }
         with (
             mock.patch.dict(os.environ, environment, clear=True),
-            mock.patch("scripts.sign_desktop.sys.platform", "win32"),
-            mock.patch(
-                "scripts.sign_desktop.shutil.which", return_value="signtool.exe"
-            ),
-            mock.patch("scripts.sign_desktop.subprocess.run") as run,
+            mock.patch("scripts.sign_bundle.sys.platform", "win32"),
+            mock.patch("scripts.sign_bundle.shutil.which", return_value="signtool.exe"),
+            mock.patch("scripts.sign_bundle.subprocess.run") as run,
         ):
             self.assertTrue(
-                sign_desktop.sign_bundle(Path("bundle"), Path("bundle/DevSetup.exe"))
+                sign_bundle.sign_bundle(Path("bundle"), Path("bundle/DevSetup.exe"))
             )
         calls = [call.args[0] for call in run.call_args_list]
         self.assertEqual(

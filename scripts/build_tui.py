@@ -1,4 +1,4 @@
-"""Build native desktop bundles; no publish, installation or native package query."""
+"""Build standalone terminal bundles; no publish, installation or native package query."""
 
 import argparse
 import hashlib
@@ -36,7 +36,6 @@ def checked_directory(path: Path) -> Path:
 
 def run(arguments: list[str], *, timeout: int = 900) -> None:
     environment = os.environ.copy()
-    environment["QT_QPA_PLATFORM"] = "offscreen"
     environment["PYINSTALLER_CONFIG_DIR"] = str(
         checked_directory(ROOT / "build" / "pyinstaller-cache")
     )
@@ -168,7 +167,7 @@ def main() -> int:
                 "--signed requires --archive so verification cannot be skipped"
             )
         from scripts.release_manifest import release_version
-        from scripts.sign_desktop import check_credentials
+        from scripts.sign_bundle import check_credentials
 
         release_version(args.release_version or "")
         check_credentials()
@@ -198,12 +197,12 @@ def main() -> int:
     if args.archive or args.archive_only:
         signed = False
         if args.signed:
-            from scripts.sign_desktop import sign_bundle
+            from scripts.sign_bundle import sign_bundle
 
             signed = sign_bundle(bundle_path(), executable_path())
         artifact = archive_bundle(signed=signed and sys.platform != "darwin")
         if args.signed and sys.platform == "darwin":
-            from scripts.sign_desktop import notarize
+            from scripts.sign_bundle import notarize
 
             notarize(bundle_path(), artifact)
             archive_bundle(signed=True)  # Stapled ticket must be in the final archive.

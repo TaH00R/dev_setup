@@ -10,23 +10,23 @@ from app.main import main
 
 
 class AppTests(unittest.TestCase):
-    def test_gui_command_loads_optional_bootstrap_only_when_requested(self):
+    def test_tui_command_loads_optional_bootstrap_only_when_requested(self):
         with mock.patch("app.bootstrap.launch", return_value=0) as launch:
-            self.assertEqual(main(["gui"]), 0)
+            self.assertEqual(main(["tui"]), 0)
         launch.assert_called_once_with()
 
-    def test_missing_qt_has_actionable_message_and_leaves_catalog_usable(self):
+    def test_missing_textual_has_actionable_message_and_leaves_catalog_usable(self):
         real_import = __import__
 
-        def without_qt(name, *args, **kwargs):
+        def without_textual(name, *args, **kwargs):
             if name == "app.bootstrap":
-                raise ModuleNotFoundError("No module named PySide6", name="PySide6")
+                raise ModuleNotFoundError("No module named textual", name="textual")
             return real_import(name, *args, **kwargs)
 
-        with mock.patch("builtins.__import__", side_effect=without_qt):
-            status, _, errors = self.run_app(["gui"])
+        with mock.patch("builtins.__import__", side_effect=without_textual):
+            status, _, errors = self.run_app(["tui"])
             self.assertEqual(status, 1)
-            self.assertIn("requirements-gui.txt", errors)
+            self.assertIn("requirements-tui.txt", errors)
             self.assertEqual(self.run_app(["catalog", "validate"])[0], 0)
 
     def run_app(self, args):
@@ -48,7 +48,7 @@ class AppTests(unittest.TestCase):
         status, output, errors = self.run_app([])
         self.assertEqual(status, 0)
         self.assertIn("catalog", output)
-        self.assertIn("gui", output)
+        self.assertIn("tui", output)
         self.assertEqual(errors, "")
 
     def test_catalog_validation_reports_bundled_metadata(self):
