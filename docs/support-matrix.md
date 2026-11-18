@@ -19,18 +19,18 @@ remain open. Metadata
 matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
 
-The [desktop workflow](desktop.md) uses APT/Homebrew inspection services.
+The [terminal workflow](tui.md) uses APT/Homebrew inspection services.
 Other backends remain command-contract support until their native readers are
-implemented. Windows currently supports catalog browsing in the desktop.
+implemented. Windows currently supports catalog browsing in the TUI.
 
 ## Application workflow support (milestone 16, in progress)
 
 No backend/source/platform scope has completed native mutation qualification
 yet. Adapter presence and successful command construction do not grant
-qualification. The normal desktop now disables install/update/remove, including
+qualification. The normal TUI now blocks install/update/remove, including
 presets and execution of a previously prepared plan. Search, compatible inventory
 and read-only verification remain available. The reason is shown in package
-details and disabled-action tooltips.
+details and blocked-plan explanations.
 
 | Scope | Command construction | Discovery / inventory readers | Verified operation service | Production mutations |
 | --- | --- | --- | --- | --- |
@@ -41,7 +41,7 @@ details and disabled-action tooltips.
 
 `DesktopServices` requires qualification by default and supplies the same policy
 to planning and execution. Direct core `Planner`/`OperationService` callers retain
-their experimental APIs for compatibility; callers outside the normal desktop
+their experimental APIs for compatibility; callers outside the normal TUI
 must supply an appropriate mutation policy. The explicit
 `require_native_qualification=False` composition is used by fake fixtures and the
 guarded disposable qualification runner. It is not a user preference or proof of

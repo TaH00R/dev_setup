@@ -1,128 +1,109 @@
 # Dev Setup
 
-One place to find and manage the tools you use for development.
+A keyboard-first terminal application for discovering and managing developer tools
+on Windows, Linux and macOS. The Qt GUI has been replaced by a Textual TUI.
 
-Dev Setup is a Python application with a PySide6 desktop interface for Windows,
-macOS, and Linux. The first desktop workflow is available: browse the catalog,
-inspect sources, review plans, and follow operations through their verified result.
-Development is ongoing; this is not a production release.
+**End users do not need Python or pip.** Native distributions bundle the
+interpreter, terminal interface, catalog and runtime dependencies.
 
-You can use the desktop, read-only catalog commands, or the Python service API.
-Installation workflows are enabled for APT on Ubuntu 24.04 and Homebrew on
-macOS. The remaining adapters have tested command builders, but still need
-inventory and transaction parsers before the application can use them end to end.
-See the [support matrix](docs/support-matrix.md) for the details.
+## Run the standalone app
 
-## Try it
+Extract the archive for your OS and architecture, keep its bundled files together,
+and open a terminal in the extracted directory:
 
-You'll need Python 3.10–3.14 and a copy of this repository. Install the optional
-Qt Widgets dependency to open the desktop:
+| Platform | Launch |
+| --- | --- |
+| Windows | `.\DevSetup\DevSetup.exe` |
+| Linux | `./DevSetup/DevSetup` |
+| macOS | `./DevSetup.app/Contents/MacOS/DevSetup` |
 
-On Windows (PowerShell):
+The local Windows preview is built at `dist/DevSetup/DevSetup.exe`; distributable
+archives and SHA-256 metadata are written to `dist/`. Preview builds are unsigned,
+and production releases have not been published. Native builds and clean-machine
+qualification are required for each platform.
 
-```powershell
-git clone https://github.com/TaH00R/dev_setup.git
-cd dev_setup
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-gui.txt
-.\.venv\Scripts\python.exe -m app gui
-```
+Run the same executable with `--help`, `--version`, `catalog validate` or
+`catalog search git` for noninteractive use. These catalog commands read local
+metadata and do not install tools. The application can manage a Python toolchain
+without depending on a separately installed Python runtime for its own startup.
 
-On macOS or Linux:
+## Terminal workflows
+
+- Dashboard: platform, architecture, manager availability and inventory errors.
+- Explore: category filters, curated/live search provenance, platform/source
+  selection, package details and requests for one combined reviewed plan.
+- Installed and Updates: native versions/sources and reviewed management actions.
+- Queue: exact command review, separate elevation consent, background operations,
+  bounded streamed output, cancellation and durable interrupted-work inspection.
+- Presets: starter bundles, editable collections and portable manifest import/export.
+- Runtimes: exact versions through existing mise, uv and rustup; separately
+  reviewed project version files and project-local environment guidance.
+- History and Settings: persistent audit/preferences, dark default, guarded history
+  clearing, diagnostics preview/export and manual signed-channel update checks.
+
+Use Tab/Shift+Tab to move focus, arrows and Enter for navigation, Ctrl+F to search,
+F5 to refresh, Ctrl+C to request cancellation and Ctrl+Q to quit. Shutdown waits
+for owned work to finish or stop. Terminal metadata is rendered as plain text.
+
+Support depends on the native backend and platform. Package mutation qualification
+is still pending, so production install/update/remove controls explain that gate;
+they do not silently bypass it. Windows inventory/orchestration remains follow-up
+work. The TUI preserves the core's consent, verification and recovery protections.
+See the [support matrix](docs/support-matrix.md), [terminal guide](docs/tui.md) and
+[roadmap](steps.md) for implemented workflows and remaining work.
+
+## Develop from source
+
+Python 3.10?3.14 is a **development requirement**, not an end-user prerequisite.
 
 ```sh
-git clone https://github.com/TaH00R/dev_setup.git
-cd dev_setup
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-gui.txt
-.venv/bin/python -m app gui
+python -m venv .venv
+# Activate the environment using the appropriate command for your shell.
+python -m pip install -r requirements-dev.txt
+python -m app tui
 ```
 
-Prefer the terminal? These commands need no third-party dependencies:
+`python -m app` opens the TUI in an interactive terminal. Piped/headless invocation
+prints help; catalog commands stay usable without loading the interface.
+`python main.py` is an equivalent source launcher.
+
+Build a standalone native distribution on the target OS:
 
 ```sh
-python -m app catalog validate
-python -m app catalog search git
+python -m pip install -r requirements-tui.txt -r requirements-security.txt "pyinstaller>=6.22,<7"
+python scripts/build_tui.py --smoke-test --archive
 ```
 
-Use the Python executable from your virtual environment. Validation checks all
-14 package definitions and their 39 reviewed platform
-mappings. Search shows each package's native identifier, backend, and source.
-These commands read local metadata and do not run package managers. A catalog
-mapping alone does not mean a package can be installed on your machine.
+The smoke checks run the absolute bundled executable from an unrelated directory
+with an empty PATH and Python environment overrides removed. They exercise its
+version, catalog validation and headless TUI startup using the embedded runtime.
+CI builds native Windows, Linux and macOS artifacts; no GUI libraries are needed.
+Signing/notarization and release publication retain their separate approval gates.
+See [distribution](docs/release.md).
 
-Use `catalog search --category editors` to browse a category, or `--help` to see
-all commands. `python main.py` is also available as a launcher for the same app.
-
-## How the repository fits together
+## Repository
 
 ```text
-app/                 Desktop bootstrap and application entry points
-  ui/                PySide6 screens, review dialog, theme, and workers
-  legacy/            Preserved installer menu and its older helpers
-models/              Package, inventory, plan, and operation records
-services/            Inventory, planning, consent, and execution
-  catalog/           Catalog loading, validation, and curated search
-package_managers/    Native adapters and their inspection code
-runtimes/            Version-manager adapters and reviewed runtime operations
-persistence/         SQLite preferences, audit metadata, and bounded event logs
-system/              Platform detection and the safe command runner
-catalog/             Reviewed JSON package definitions, grouped by category
-tests/
-  unit/              Core and adapter tests; older regressions in legacy/
-  catalog/           Schema, loader, search, and shipped metadata tests
-  integration/       Isolated import, launcher, runner, and fake-bridge checks
-  fixtures/          Shared synthetic test data
-resources/           Project assets
-docs/                Architecture, API guides, and platform support
-scripts/             Desktop bundle, signing, and release-manifest tooling
-packaging/           Native desktop bundle specification
+app/tui/             Terminal pages, review screens and background-work routing
+application/         UI-independent persistent session and environment workflows
+services/            Catalog, discovery, inventory, planning, operations and recovery
+models/              Typed package, runtime, plan and operation records
+package_managers/    Native adapters and reviewed inspection code
+runtimes/            Version-manager adapters
+persistence/         SQLite preferences, history and durable lifecycle records
+system/              Platform integration, safe process runner and diagnostics
+catalog/             Reviewed JSON package definitions
+packaging/           Standalone native bundle specification
+scripts/             TUI builds, signing and guarded native qualification
+app/legacy/          Preserved original source-only installer menu
 ```
 
-The core stays independent of Qt. Adapters own native commands; catalog files
-contain metadata rather than scripts. Plans expose the selected source, command,
-privileges, and expected effects before approval. Operations report failures and
-verify native inventory before declaring success.
+The core imports without Textual, Qt or third-party libraries. Native commands use
+argument arrays and `shell=False`; catalog entries contain metadata, not scripts.
 
-The desktop includes Dashboard, Explore, Installed, Updates, Queue, History,
-Settings, Presets, and Runtimes. Search combines curated tools with live results from detected managers.
-Live results retain source/native IDs and are browse-only until a reviewed mapping
-is available. Searches are debounced, cached, cancellable, and can be disabled in
-Settings; native searches may access the network. See the [discovery guide](docs/discovery.md).
-Install, remove, and update actions for curated tools open a
-plan review; administrator prompts need a separate approval. Settings and audit
-history are saved locally in SQLite; process output stays in the current session.
-Native operations also save lifecycle checkpoints. Interrupted work opens in
-Queue for explicit inspection and acknowledgement, without automatic retries;
-see [operation recovery](docs/lifecycle.md).
-Native access is serialized across cooperating instances, and changed launch
-files require a fresh review. See [native safety](docs/native-safety.md) for the
-locking policy, retry protection and platform qualification limits.
-Storage failures leave the current session usable and show a warning. Windows can browse the catalog, but native
-package management there is not enabled yet. See the [desktop guide](docs/desktop.md)
-for the workflow and current limits.
-
-## The older installer menu
-
-The original menu is preserved in `app/legacy/` while the desktop workflow is
-built. To open it, install its dependencies and choose it explicitly:
+## Validate changes
 
 ```sh
-python -m pip install -r requirements.txt
-python -m app legacy
-```
-
-Use the Python executable from your virtual environment for these commands. The
-legacy menu uses the original installer paths, including Linux repository refresh
-and system upgrade behavior. It does not use the new planning and consent service.
-The new app does not load those installers during normal startup or catalog use.
-
-## Working on Dev Setup
-
-From an activated virtual environment:
-
-```sh
-python -m pip install -r requirements-dev.txt
 python -W error::ResourceWarning -m unittest discover -s tests -t . -v
 python -m app catalog validate
 python -m ruff check .
@@ -130,35 +111,8 @@ python -m ruff format --check .
 python -m mypy
 ```
 
-Tests mock package operations. Process tests use disposable Python programs and a
-fake Scoop script; they never install developer tools. Native installation,
-elevation and clean-machine behavior still need disposable-system
-coverage. CI is configured for Python 3.10–3.14 on Windows, macOS, and Linux.
-
-Presets and Runtimes now provide portable package collections, exact runtime
-versions through installed mise, uv, and rustup, and reviewed project configuration.
-Importing a manifest shows unsupported items before execution; runtime and file
-changes have their own review. See the [environment guide](docs/environments.md).
-
-Desktop preview bundles use PyInstaller. After installing the GUI and security
-requirements plus `pyinstaller>=6.22,<7`, run:
-
-```sh
-python scripts/build_desktop.py --smoke-test --archive
-```
-
-The output stays in ignored `dist/` and `build/` directories. Preview bundles are
-unsigned. CI is configured to build on all three operating systems; production
-signing, notarization, and clean-machine qualification still require release
-infrastructure and evidence. The [release guide](docs/release.md) records those
-gates. Application update checks are manual and disabled until a trusted signed
-channel is configured; downloaded releases are never installed automatically.
-
-More native inventory readers are needed to enable the remaining package
-backends. See the [persistence guide](docs/persistence.md) for storage, migration,
-diagnostics, and privacy details.
-
-Read the [development guide](docs/development.md), [architecture](docs/architecture.md),
-and [operation service guide](docs/operations.md) before changing the core. For
-new package definitions, start with the [catalog guide](docs/catalog.md).
-Contribution details are in [CONTRIBUTING.md](CONTRIBUTING.md).
+Terminal interaction tests use injected fake backends and temporary state. Ordinary
+tests never install developer tools. Real native qualification runs only in
+explicitly approved disposable environments. The original installer menu remains
+source-only via `python -m app legacy` with `requirements.txt`; it does not use the
+new planning/consent services and is excluded from standalone distributions.

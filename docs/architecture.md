@@ -3,7 +3,7 @@
 The new application will use the following dependency direction:
 
 ```text
-PySide6 widgets and Qt workers
+Textual terminal widgets and cancellable workers
           |
 Application services (catalog, discovery, planning, inventory, operations)
           |
@@ -19,18 +19,23 @@ repository root, without a nested `dev_setup/` directory. Domain records and
 platform inspection were introduced in step 2. Step 4 adds reviewed native
 adapters in root-level `package_managers/` and the worker-side command runner
 in `system/`. Step 6 adds root-level `services/` for inventory, dependency/conflict
-planning, exact-plan consent and verified operations. Step 7 adds the optional
-PySide6 presentation layer in `app/ui/` and Qt-independent desktop aggregation
-in `services/desktop.py`.
-Step 8 adds Qt-independent discovery records/services and adapter-owned parsers,
-with an independent generation-aware search worker in `app/ui/search.py`.
-Step 9 adds distinct runtime adapters in `runtimes/` and strict portable manifests
-and reviewed project-file changes in `services/environments.py`. Step 10 adds
-SQLite settings/audit storage in `persistence/`, pinned signed-release verification
-and diagnostics services, and native bundle tooling under `scripts/` and `packaging/`.
-Importing core modules must not
-discover software, start a process,
-load Qt, or import `app`, the launcher, or `app/legacy/`.
+planning, exact-plan consent and verified operations. The 2026-11-18 terminal
+pivot replaces the Qt interface with `app/tui/`: pages, plain-text rendering,
+explicit review screens, keyboard actions and cancellable background work.
+`application/session.py` owns persistent preferences, audit and lifecycle wiring;
+`application/environments.py` provides portable file workflows. Native reads,
+writes and state I/O execute on workers; widgets only render cached state.
+
+`services/desktop.py` retains its existing UI-independent API names for core and
+native-profile compatibility. Discovery, runtime and environment services remain
+framework-independent. Importing core modules must not load Textual/Rich, import
+`app`/the legacy launcher, start native processes or make network requests.
+
+Standalone bundles include the interpreter, terminal library/assets, catalog,
+SQLite support and reviewed Scoop bridge. `scripts/tui_entry.py` is the console
+entry point; `scripts/build_tui.py` builds OS-specific artifacts and verifies them
+from a foreign directory with PATH empty and Python overrides removed. Qt and the
+legacy installers are excluded. End users do not install Python or pip.
 
 The expanded roadmap's milestone 12 adds `system/coordination.py` for native
 access serialization across services/processes and `system/identity.py` for
@@ -40,7 +45,7 @@ revalidates launch identity against its captured process environment immediately
 before dispatch. See [native safety](native-safety.md) for policy and limits.
 Milestone 13 adds `system/processes.py` for owned OS process scopes and
 `models/diagnostics.py`/`system/diagnostics.py` for fixed session diagnostic
-context. Diagnostics are independent of Qt and exclude native output; support
+context. Diagnostics are independent of UI libraries and exclude native output; support
 preview/export remains explicit. See [runner hardening](runner-hardening.md).
 
 `catalog/` contains only reviewed JSON package definitions. Python loading,
@@ -59,14 +64,13 @@ native identifiers/options and construct argument arrays. The runner uses
 `shell=False`, bounded capture, timeouts, cancellation, and structured errors.
 Neither services nor widgets should build package-manager shell commands.
 
-Desktop page widgets live in `app/ui/pages/`, independent of `MainWindow`.
-The window wires navigation, focused Qt presenters and background controllers;
-page construction itself performs no native reads or writes. Root-level
-`application/` contains thin, Qt-independent workflows where multiple service
-steps need coordination. The initial environment workflow reuses the manifest,
-planning and project-configuration services, including their validation and
-consent rules. Existing `services/desktop.py` already supplies the package
-queries, so it is reused directly instead of wrapped in a new framework.
+Terminal page composition lives in `app/tui/pages.py`; `actions.py` routes intent,
+`review.py` enforces explicit consent and elevation, and `presentation.py` renders
+reviewed domain records as plain text. `app.py` manages navigation, worker
+lifetimes, generation-aware search and bounded log snapshots. Shutdown cancels
+and waits for owned work. Terminal metadata cannot inject styling or control
+sequences. See [terminal workflows](tui.md).
+
 The user-authorized fixed Scoop `-File` bridge is documented in
 [package-manager boundaries](package-managers.md); it is not a general script API.
 

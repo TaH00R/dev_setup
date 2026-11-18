@@ -1,3 +1,20 @@
+# Terminal migration (2026-11-18)
+
+The current interface is a Textual TUI. Qt widgets, dependencies and GUI tests
+have been removed. `app/tui/` replaces `app/ui/`; terminal interaction tests live
+in `tests/tui/`. `python -m app` opens the TUI on a terminal and `tui` is explicit.
+Catalog/legacy source commands and the core API remain compatible. Existing
+SQLite settings/history/lifecycle schemas are reused, including the dark default.
+
+Standalone entry/build/signing modules are now `scripts/tui_entry.py`,
+`scripts/build_tui.py` and `scripts/sign_bundle.py`. Native executable bundles
+include Python, so end users do not install it. Qt and legacy installers are
+excluded. Build/check commands are documented in the [README](../README.md).
+
+The current roadmap is [steps.md](../steps.md). The migration is split into seven
+coherent commits at the user's request. The previous migration map below is
+historical core context; it does not reintroduce the removed interface.
+
 # Incremental migration map
 
 Preserve the existing CLI and installers until replacement behavior has tests.

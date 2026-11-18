@@ -168,7 +168,7 @@ inventory, source/candidate checks, dependency/conflict planning, exact-plan
 consent, native verification and operation-state integration. Additional backend
 inspection remains gated explicitly; command support alone does not enable
 application orchestration. See [operation services](operations.md). The desktop
-worker/consent UI is implemented in step 7; see the [desktop guide](desktop.md).
+worker/consent UI is implemented in step 7; see the [desktop guide](tui.md).
 The legacy CLI retains its installer paths.
 
 Command syntax was reviewed against primary sources:

@@ -206,7 +206,7 @@ system changes can remain. No rollback is implemented or claimed.
 `ExecutionReport` includes operation results and in-memory audit records with
 package/action/backend/source/version, approval time, terminal time and status.
 Audit records exclude command output, environment values and credentials.
-The [desktop UI](desktop.md) persists these metadata records through the
+The [desktop UI](tui.md) persists these metadata records through the
 [SQLite store](persistence.md), and supplies explicit review/consent and
 background workers for these services. Direct service callers choose whether
 to persist the returned records.

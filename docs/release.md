@@ -1,3 +1,38 @@
+# Standalone terminal distribution
+
+End users need no Python or pip: PyInstaller bundles the interpreter and all
+runtime dependencies. The 2026-11-18 terminal pivot replaces the GUI entry and Qt
+build requirements with Textual, a console entry and bundled terminal assets.
+Native archives keep their adjacent runtime files. Windows/Linux use a directory
+with an executable; macOS keeps the native bundle and its terminal executable at
+`DevSetup.app/Contents/MacOS/DevSetup`.
+
+Build from source on each target OS:
+
+```sh
+python -m pip install -r requirements-tui.txt -r requirements-security.txt "pyinstaller>=6.22,<7"
+python scripts/build_tui.py --smoke-test --archive
+```
+
+Smoke verification runs the absolute binary from an unrelated temporary directory
+with an empty PATH and PYTHONHOME/PYTHONPATH/VIRTUAL_ENV removed. It checks version,
+catalog validation, bundled presets and headless terminal startup. It also retains
+the original guarded output paths, atomic archive replacement and SHA-256 sidecar.
+Qt and source-only legacy installers are excluded. No GUI system libraries are
+required in the build workflow.
+
+Windows local preview validation is recorded in
+[terminal qualification](tui-qualification.md). Native Linux/macOS builds,
+clean-machine qualification and signing/notarization still require their own runs.
+Unsigned previews are not production releases; automatic publication remains
+deferred. The existing manual signing/release pipeline remains protected.
+
+## Historical distribution notes
+
+The notes below retain prior GUI preview scope and signing contracts. Their old
+GUI test counts are historical, not evidence for the current terminal interface.
+Current build entry names have been migrated as described above.
+
 # Desktop builds and release preparation
 
 The source version is currently `0.1.0.dev0`, an unsigned preview. The repository
@@ -8,7 +43,7 @@ validation require external release runs. CI configuration is not evidence that
 those runs have passed.
 
 The local Windows preview build on 2026-11-12 passed
-`python scripts/build_desktop.py --smoke-test --archive`, including both frozen
+`python scripts/build_tui.py --smoke-test --archive`, including both frozen
 checks. The resulting `DevSetup-0.1.0.dev0-windows-x86_64.zip` was 58,731,157 bytes;
 its ZIP CRCs, metadata size/SHA-256 and bundled entry point/catalog/Scoop bridge
 were checked. It is unsigned. This was a developer-machine preview check, not a
@@ -34,11 +69,11 @@ mypy passed for 66 source files. Local documentation links and diff checks passe
 Use Python 3.10 or newer in an isolated environment on the target OS:
 
 ```text
-python -m pip install -r requirements-gui.txt -r requirements-security.txt "pyinstaller>=6.22,<7"
-python scripts/build_desktop.py --smoke-test --archive
+python -m pip install -r requirements-tui.txt -r requirements-security.txt "pyinstaller>=6.22,<7"
+python scripts/build_tui.py --smoke-test --archive
 ```
 
-PyInstaller builds the Qt desktop from `scripts/desktop_entry.py`. The bundle
+PyInstaller builds the standalone terminal application from `scripts/tui_entry.py`. The bundle
 includes the curated JSON catalog and reviewed Scoop bridge; starter presets are
 typed application data. Legacy installers are excluded. Build output, work files
 and the PyInstaller cache stay under the repository's `dist/` and `build/`
@@ -56,11 +91,11 @@ private temporary directory and published by replacing directory entries.
 Artifacts contain the embedded version, OS and architecture in their filename.
 The adjacent `.json` file records their SHA-256, size and native signing status.
 Unsigned preview metadata always says `signed: false`. Keep the entire Windows
-or Linux application directory together; moving just the executable breaks Qt
+or Linux application directory together; moving just the executable breaks the bundled runtime
 and the bundled catalog. Extract archives before starting the application.
 
 `--self-check` validates the bundled catalog and all ten starter presets without
-Qt, native commands or state writes. `--smoke-test` opens and closes the desktop
+Qt, native commands or state writes. `--smoke-test` renders and closes the headless terminal interface
 with automatic manager refresh disabled and ephemeral services. The build helper
 uses Qt's offscreen platform and a 60-second process limit. Failures return a
 nonzero status; unattended checks do not open a frozen Python exception dialog.
@@ -82,7 +117,7 @@ creating its matching `vVERSION` tag. Signed builds refuse `.dev` versions and
 version/tag mismatches. No environment variable can replace the embedded version.
 
 ```text
-python scripts/build_desktop.py --signed --release-version VERSION --smoke-test --archive
+python scripts/build_tui.py --signed --release-version VERSION --smoke-test --archive
 ```
 
 The command fails before building when required signing configuration is absent.

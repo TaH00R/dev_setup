@@ -1,5 +1,7 @@
 # Native qualification: milestone 16 remains open
 
+The interface migrated to a [terminal application](tui.md) on 2026-11-18.
+The native evidence below retains its original tested core snapshots.
 Application support reporting and the production qualification gate are
 implemented. Native APT/Homebrew qualification is **not complete**. After starting
 the installed Docker Desktop, real APT smoke, upgrade, controlled failure,
@@ -570,7 +572,7 @@ documents the early `APT_CONFIG` bootstrap used for private refreshes.
 These references describe environments and commands; they are not project test
 evidence. No dependency or release-publishing change is introduced.
 
-## Local validation (2026-11-18)
+## Pre-pivot local validation (2026-11-18; historical)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
 ran **619 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
