@@ -35,9 +35,9 @@ class CommandRunner:
         redactor: Redactor | None = None,
         coordinator: NativeCoordinator | None = None,
     ) -> None:
-        if type(capture_bytes) is not int or not 1 <= capture_bytes <= 65536:
+        if type(capture_bytes) is not int or not 1 <= capture_bytes <= 8 * 1024 * 1024:
             raise ValueError(
-                "capture limit must be between 1 and 65536 bytes per stream"
+                "capture limit must be between 1 byte and 8 MiB per stream"
             )
         self.capture_bytes = capture_bytes
         self.redactor = redactor or Redactor()
@@ -384,9 +384,9 @@ class CommandRunner:
             clean = sanitizer.clean(
                 buffers[name].decode("utf-8", errors="replace"), partial=True
             )
-            if len(clean) > 65536:
+            if len(clean) > self.capture_bytes:
                 truncated[name] = True
-            return clean[:65536]
+            return clean[: self.capture_bytes]
 
         stdout, stderr = captured("stdout"), captured("stderr")
         return CommandResult(

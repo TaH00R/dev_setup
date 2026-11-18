@@ -4,6 +4,7 @@ import threading
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 from textual.widgets import (
     Button,
@@ -17,10 +18,14 @@ from textual.widgets import (
 from app.tui.app import DevSetupApp
 from app.tui.pages import PAGES
 from app.tui.review import Review, plain
+from models.errors import ErrorCode
+from models.inventory import InstalledPackage, Inventory
 from models.planning import OperationAction
+from package_managers.base import AdapterError
 from persistence.store import StateStore
 from services.desktop import DesktopServices
 from services.environments import load_manifest
+from services.inventory import InventorySource
 from services.records import PackageRequest
 from tests.fixtures.desktop import DesktopFixture
 
@@ -31,6 +36,9 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.root = Path(self.directory.name)
         self.fixture = DesktopFixture(self.root)
+        detector = mock.patch("services.inventory.shutil.which", return_value=None)
+        detector.start()
+        self.addCleanup(detector.stop)
         self.app = DevSetupApp(
             self.fixture.services,
             state_path=self.root / "state.sqlite3",
@@ -58,9 +66,11 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
 
     async def click(self, identity):
         widget = self.app.screen.query_one(identity)
+        widget.focus(scroll_visible=False)
         widget.scroll_visible(immediate=True)
         await self.pilot.pause()
-        self.assertTrue(await self.pilot.click(identity))
+        await self.pilot.wait_for_scheduled_animations()
+        self.assertTrue(await self.pilot.click(identity, offset=(2, 1)))
         await self.pilot.pause()
 
     async def consent(self, *, elevation=False):
@@ -87,6 +97,42 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         self.app.action_search()
         await self.pilot.pause()
         self.assertEqual(self.app.focused.id, "search")
+
+    async def test_installed_page_shows_native_failure_and_independent_path_tools(self):
+        from unittest import mock
+
+        from textual.widgets import Static
+
+        def unavailable(cancel):
+            raise AdapterError(
+                ErrorCode.MISSING_BACKEND, "Example manager is not installed."
+            )
+
+        self.app.services.inventory.sources = (
+            InventorySource("missing", unavailable),
+            InventorySource(
+                "custom",
+                lambda cancel: Inventory(
+                    "custom", (InstalledPackage("registered-app", ("1.2",)),)
+                ),
+            ),
+        )
+        with mock.patch(
+            "services.inventory.shutil.which",
+            side_effect=lambda name: str(self.root / "git") if name == "git" else None,
+        ):
+            self.app.action_refresh()
+            await self.idle()
+        self.app.navigate("Installed")
+        await self.pilot.pause()
+        table = self.app.query_one("#installed-table", DataTable)
+        self.assertEqual(table.row_count, 2)
+        self.assertIn("executable", str(table.get_row_at(1)))
+        self.assertIn("PATH observation", str(table.get_row_at(1)))
+        self.assertIn(
+            "Example manager is not installed",
+            str(self.app.query_one("#inventory-status", Static).render()),
+        )
 
     async def test_search_filters_preserve_curated_identity_without_installing(self):
         self.app.navigate("Explore")

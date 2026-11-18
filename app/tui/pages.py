@@ -58,6 +58,7 @@ def pages() -> ComposeResult:
         yield Button("Review combined plan", id="preview", variant="primary")
     with VerticalScroll(id="installed"):
         yield Button("Refresh installed tools", id="refresh-installed")
+        yield Static("", id="inventory-status", markup=False)
         yield table("installed-table")
         yield Button("Inspect selected package", id="inspect-installed")
     with VerticalScroll(id="updates"):

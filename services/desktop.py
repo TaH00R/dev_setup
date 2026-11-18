@@ -13,7 +13,7 @@ from system.runner import CommandRunner
 from .catalog.service import CatalogService
 from .discovery import DiscoveryService
 from .events import EventBus
-from .inventory import Inspector, InventoryService
+from .inventory import Inspector, InventoryService, InventorySource
 from .operations import OperationService
 from .planning import Planner
 from .records import PackageRequest
@@ -63,6 +63,7 @@ class DesktopServices:
         discovery: DiscoveryService | None = None,
         *,
         require_native_qualification: bool = True,
+        inventory_sources: tuple[InventorySource, ...] = (),
     ) -> None:
         self.catalog = catalog
         self.host = host
@@ -70,7 +71,9 @@ class DesktopServices:
         self.inspectors = inspectors
         self.require_native_qualification = require_native_qualification
         policy = pending_native_qualification if require_native_qualification else None
-        self.inventory = InventoryService(inspectors, runner)
+        self.inventory = InventoryService(
+            inspectors, runner, host=host, sources=inventory_sources
+        )
         self.planner = Planner(catalog, host, inspectors, mutation_policy=policy)
         self.events = EventBus()
         self.operations = OperationService(
@@ -155,6 +158,26 @@ class DesktopServices:
                         mapping,
                     )
                 )
+        mapped = {row.package_id for row in rows if row.package_id}
+        for detection in report.detections:
+            if detection.present and detection.package_id not in mapped:
+                rows.append(
+                    InstalledRow(
+                        detection.package_id,
+                        (
+                            detection.output.strip()
+                            .replace("\n", " ")
+                            .replace("\r", " ")[:256],
+                        )
+                        if detection.output.strip()
+                        else (),
+                        "executable",
+                        None,
+                        detection.package_id,
+                        None,
+                    )
+                )
+                mapped.add(detection.package_id)
         return DesktopSnapshot(backends, report, tuple(rows))
 
     def updates(self, snapshot: DesktopSnapshot, cancel: Event) -> UpdateReport:

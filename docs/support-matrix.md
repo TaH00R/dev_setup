@@ -19,9 +19,13 @@ remain open. Metadata
 matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
 
-The [terminal workflow](tui.md) uses APT/Homebrew inspection services.
-Other backends remain command-contract support until their native readers are
-implemented. Windows currently supports catalog browsing in the TUI.
+The [terminal workflow](tui.md) reads installed software through APT, Homebrew,
+WinGet, Scoop, pacman, the local RPM database for DNF/zypper, APK and Flatpak.
+Windows additionally reads registered applications in both user/machine and
+32/64-bit registry views. Catalog executable detection runs independently on every
+platform, including when no package manager is available. See
+[inventory behavior and validation](inventory.md). Read-only inventory does not
+grant installation-planning or mutation support.
 
 ## Application workflow support (milestone 16, in progress)
 
@@ -36,7 +40,7 @@ details and blocked-plan explanations.
 | --- | --- | --- | --- | --- |
 | APT, reviewed Ubuntu 24.04 mappings | Implemented | Implemented | Root Ubuntu x86_64 smoke, Git upgrade, download cancellation/recovery, controlled verification failure, origin/URL/key-drift rejection, fresh-index authentication and cached/signed-release tampering rejection observed | Disabled; remaining native qualification gates pending |
 | Homebrew core/cask, reviewed macOS ARM64 mappings | Implemented | Implemented | Implemented with mocked evidence | Disabled; native qualification pending for each source/action |
-| WinGet, Scoop, pacman, DNF, zypper, apk, Flatpak | Implemented where declared below | Live discovery where provider exists; no application inventory inspector | Not enabled | Disabled |
+| WinGet, Scoop, pacman, DNF, zypper, apk, Flatpak | Implemented where declared below | Read-only inventory implemented; live discovery where a provider exists | Not enabled | Disabled |
 | Chocolatey, MacPorts, Snap | Deferred | Deferred | Deferred | Disabled |
 
 `DesktopServices` requires qualification by default and supplies the same policy

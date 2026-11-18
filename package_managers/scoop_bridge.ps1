@@ -4,7 +4,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $ScoopScript,
     [Parameter(Mandatory = $true)]
-    [ValidateSet('version', 'search', 'search-json', 'install', 'uninstall', 'upgrade', 'list', 'show')]
+    [ValidateSet('version', 'search', 'search-json', 'inventory-json', 'install', 'uninstall', 'upgrade', 'list', 'show')]
     [string] $Action,
     [string] $Package,
     [string] $Query
@@ -79,6 +79,7 @@ try {
     } else {
         if ($Package -or $Query) { throw 'Unexpected action arguments.' }
         if ($Action -eq 'version') { $nativeAction = '--version' }
+        if ($Action -eq 'inventory-json') { $nativeAction = 'export' }
     }
     $global:LASTEXITCODE = 0
     & $scriptFile.FullName $nativeAction @arguments

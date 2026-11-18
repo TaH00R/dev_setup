@@ -289,12 +289,33 @@ class DevSetupApp(App[None]):
                     r.native_id,
                     ", ".join(r.versions),
                     r.backend,
-                    r.source_id or "unknown",
+                    r.source_id
+                    or ("PATH observation" if r.backend == "executable" else "unknown"),
                 ),
             )
             for i, r in enumerate(value.installed)
         ]
         self._table("installed-table", rows)
+        self.query_one("#inventory-status", Static).update(
+            plain(
+                f"{len(value.installed)} installed/observed tools; {len(value.inventory.snapshots)} native inventory sources.\n"
+                "PATH observations are not proof of package ownership.\n"
+                + "\n".join(
+                    f"{backend}: {error.message}"
+                    for backend, error in value.inventory.errors
+                )
+                + "\n".join(
+                    f"\n{d.package_id}: executable present; {d.error.message}"
+                    for d in value.inventory.detections
+                    if d.present and d.error
+                )
+                + (
+                    "\nNo native inventory could be read. PATH observations are shown when available."
+                    if not value.inventory.snapshots
+                    else ""
+                )
+            )
+        )
         self.query_one("#backends", Static).update(
             plain(
                 "\n".join(

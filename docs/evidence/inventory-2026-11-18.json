@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "recorded_on": "2026-11-18",
+  "status": "cross_platform_inventory_implemented",
+  "unit_tests": 576,
+  "unit_skipped": 3,
+  "terminal_tests": 19,
+  "native_windows": {
+    "registry_packages": 168,
+    "winget_packages": 52,
+    "catalog_executables_observed": 10,
+    "interactive_bundled_installed_rows": 225,
+    "interactive_quit_exit_code": 0,
+    "initial_winget_timeout_preserved_other_sources": true,
+    "scoop": "not installed"
+  },
+  "native_linux": [
+    {
+      "image": "ubuntu:24.04",
+      "digest": "ubuntu@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5",
+      "backend": "apt",
+      "packages": 92,
+      "passed": true,
+      "read_only": true,
+      "network": "none"
+    },
+    {
+      "image": "archlinux:base",
+      "digest": "archlinux@sha256:d4594bb2300cba11f41c2f27923eb56f63d9988909c402f9c95517d1e362c899",
+      "backend": "pacman",
+      "packages": 137,
+      "passed": true,
+      "read_only": true,
+      "network": "none"
+    },
+    {
+      "image": "fedora:43",
+      "digest": "fedora@sha256:f01112b9a1f1d0504ad962d9adfa401425033f8ab067e0a821904ebdde5b8ca5",
+      "backend": "dnf",
+      "packages": 142,
+      "passed": true,
+      "read_only": true,
+      "network": "none"
+    },
+    {
+      "image": "opensuse/tumbleweed:latest",
+      "digest": "opensuse/tumbleweed@sha256:0951acf558ae96a8b6b55d2ee66ad4e7aba1e2741ac545f8ff309bca9bd963e8",
+      "backend": "zypper",
+      "packages": 119,
+      "passed": true,
+      "read_only": true,
+      "network": "none"
+    },
+    {
+      "image": "redis:8-alpine",
+      "digest": "redis@sha256:47b08295737773de3b711fb86f13ae802f5074e96a9a2d29f5f80164ac08c046",
+      "backend": "apk",
+      "packages": 23,
+      "passed": true,
+      "read_only": true,
+      "network": "none"
+    }
+  ],
+  "native_checks_pending": [
+    "macOS Homebrew",
+    "Scoop",
+    "Flatpak"
+  ],
+  "artifact": {
+    "version": "0.1.0.dev0",
+    "os": "windows",
+    "architecture": "x86_64",
+    "filename": "DevSetup-0.1.0.dev0-windows-x86_64.zip",
+    "size": 21297185,
+    "sha256": "9b52bc4280bce48ac37e68e381c1ed2c538c437a0d2cfeeea603fa6925ec1a53",
+    "signed": false,
+    "qualification": "extracted-bundle-no-python-on-path",
+    "passed": true,
+    "clean_machine": false,
+    "checks": [
+      "version",
+      "catalog",
+      "self-check",
+      "terminal-smoke"
+    ]
+  },
+  "mutations_enabled": false,
+  "package_installations_during_checks": false,
+  "qualification_note": "Native Linux database commands were dispatched into disposable images. Windows executable and extracted archive were exercised locally. This does not establish native mutation or clean-machine release qualification."
+}

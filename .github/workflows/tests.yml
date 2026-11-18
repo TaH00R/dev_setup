@@ -48,3 +48,53 @@ jobs:
       - run: python -m mypy
       - run: python -m app catalog validate
       - run: git diff --check
+
+  native-inventory:
+    name: Read-only inventory on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      DEV_SETUP_NATIVE_INVENTORY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest tests.integration.test_inventory_native.NativeInventoryTests.test_host_read_only_inventory -v
+
+  linux-inventory:
+    name: Read-only ${{ matrix.backend }} inventory
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu:24.04
+            distro: ubuntu
+            backend: apt
+          - image: archlinux:base
+            distro: arch
+            backend: pacman
+          - image: fedora:43
+            distro: fedora
+            backend: dnf
+          - image: opensuse/tumbleweed:latest
+            distro: opensuse-tumbleweed
+            backend: zypper
+          - image: alpine:3.22
+            distro: alpine
+            backend: apk
+    env:
+      DEV_SETUP_INVENTORY_IMAGE: ${{ matrix.image }}
+      DEV_SETUP_INVENTORY_DISTRO: ${{ matrix.distro }}
+      DEV_SETUP_INVENTORY_BACKEND: ${{ matrix.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Inspect disposable native database without installations
+        run: python -m unittest tests.integration.test_inventory_native.NativeInventoryTests.test_linux_image_read_only_inventory -v

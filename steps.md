@@ -60,8 +60,10 @@ creating a menu item alone does not satisfy these acceptance criteria.
 
 ## Subsequent development
 
-1. Implement and qualify missing native inventory/planning workflows, prioritizing
-   Windows WinGet/Scoop so the Windows TUI can manage tools end to end.
+1. Complete native planning and mutation qualification, prioritizing Windows
+   WinGet/Scoop. Read-only inventory is now implemented for all existing backends,
+   with independent executable detection and Windows application registration;
+   this does not enable install/remove/update operations.
 2. Complete combined queue recovery/retry and full package metadata presentation.
 3. Complete portable environment composition, project configuration and drift checks.
 4. Expand discovery/providers and curated catalog only with verified mappings.
@@ -100,3 +102,29 @@ Python environment overrides removed and temporary HOME/application-state paths.
 Local Windows checks and 563 tests (one skip) passed. CI jobs on Linux/macOS and
 clean-machine interactive validation remain pending. See the
 [qualification record](docs/tui-qualification.md#extracted-artifact-follow-up).
+
+## Cross-platform inventory fix (2026-11-18)
+
+- [x] Decouple installed-package readers from mutation/planning inspectors.
+- [x] Wire WinGet, Scoop, pacman, RPM-backed DNF/zypper, APK and Flatpak inventory
+  alongside existing APT/Homebrew readers. Include both user/system Flatpak apps.
+- [x] Read Windows user/machine 32/64-bit registered applications independently.
+- [x] Run catalog PATH/version observations with no native manager or after reader
+  failure, label observations and display per-source errors on Installed.
+- [x] Bound native inventory capture at 8 MiB, retain normal 64 KiB process output
+  and reject failed/truncated/malformed snapshots.
+- [x] Add deterministic reader/UI tests and opt-in native host/container CI checks.
+- [x] Check real Windows application registration and disposable Ubuntu, Arch,
+  Fedora, openSUSE and Alpine package inventories without installing packages.
+- [ ] Complete native macOS, Scoop and Flatpak validation on provisioned hosts;
+  mutation qualification remains a separate milestone.
+
+See [inventory coverage](docs/inventory.md). This covers the project's supported
+platform/backend matrix; it is not an exhaustive scan of every portable app,
+store, language package manager, runtime environment or unsupported OS.
+
+Validation for this fix: 576 tests, three skips; 19 terminal tests; Ruff and mypy
+passed. Native Windows inventory and five disposable Linux database checks passed.
+The rebuilt/extracted Windows executable passed standalone checks with PATH empty
+and displayed installed tools in a real terminal. See
+[the evidence record](docs/evidence/inventory-2026-11-18.json).

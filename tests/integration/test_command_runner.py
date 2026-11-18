@@ -248,9 +248,10 @@ class CommandRunnerTests(unittest.TestCase):
         self.assertNotIn("sensitive", repr(result.diagnostics))
 
     def test_invalid_requests_and_limits_are_rejected(self):
-        for limit in (0, -1, True, 65537):
+        for limit in (0, -1, True, 8 * 1024 * 1024 + 1):
             with self.subTest(limit=limit), self.assertRaises(ValueError):
                 CommandRunner(capture_bytes=limit)
+
         for changes in (
             dict(argv="echo command"),
             dict(timeout_seconds=float("nan")),
@@ -259,3 +260,10 @@ class CommandRunnerTests(unittest.TestCase):
         ):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 replace(fixture_command(), **changes)
+
+    def test_large_read_only_inventory_has_explicit_bounded_capture(self):
+        command = fixture_command("print('x' * 100000)")
+        result = CommandRunner(capture_bytes=8 * 1024 * 1024).run(command)
+        self.assertTrue(result.succeeded)
+        self.assertFalse(result.output_truncated)
+        self.assertGreater(len(result.stdout), 65536)

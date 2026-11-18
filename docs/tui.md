@@ -34,8 +34,11 @@ the core. A menu or successfully constructed command does not establish support.
 Installed refreshes native inventory and exposes mapped tools for inspection.
 Updates checks reviewed candidates and prepares combined upgrade review. Inventory
 errors are displayed explicitly. The normal application currently keeps package
-mutations disabled while qualification is incomplete; Windows native inventory
-and management remain roadmap work.
+mutations disabled while qualification is incomplete. Installed supports native
+inventory on each listed backend and Windows registered applications. PATH-detected
+catalog tools appear as executable observations, with unknown ownership. Refresh
+errors remain visible on Installed without hiding results from working sources.
+See [inventory coverage](inventory.md) for sources and limitations.
 
 ## Queue, history and recovery
 

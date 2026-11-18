@@ -107,3 +107,10 @@ Hosted-runner results are not yet available. Each configured CI qualification jo
 uploads `standalone-qualification.json` with the artifact digest and pass/fail
 result. These reports do not establish signing, interactive clean-machine
 qualification or native package-manager support, and do not publish a release.
+
+## Current inventory-enabled preview
+
+The [inventory fix](inventory.md) supersedes the local preview archive again at
+the same filename. Its [evidence record](evidence/inventory-2026-11-18.json) records
+the current archive hash, standalone checks, real Windows Installed-page run and
+native Linux database checks. Earlier artifact hashes above remain historical.
