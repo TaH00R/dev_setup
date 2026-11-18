@@ -20,7 +20,7 @@ import sys
 class RejectExternalLayers(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
         if fullname.split('.')[0] in {
-            'app', 'main', 'installers', 'system_info', 'PySide6', 'requests', 'distro'
+            'app', 'main', 'installers', 'system_info', 'PySide6', 'textual', 'rich', 'requests', 'distro'
         }:
             raise AssertionError('Core imported forbidden layer: ' + fullname)
 
