@@ -1,0 +1,2 @@
+# Terminal UI only; the core stays independent of third-party interface libraries.
+textual>=8.2.8,<9
