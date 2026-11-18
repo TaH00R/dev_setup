@@ -36,3 +36,71 @@ jobs:
             dist/DevSetup-*.tar.gz
             dist/DevSetup-*.json
           if-no-files-found: error
+
+  extracted-bundle:
+    needs: native-bundle
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: DevSetup-preview-${{ runner.os }}-${{ runner.arch }}
+          path: downloaded-bundle
+      - name: Verify downloaded archive and qualify extracted executable
+        shell: python
+        run: |
+          import hashlib, json, os, pathlib, subprocess, sys, tarfile, tempfile, zipfile
+          from scripts.build_tui import verify_standalone
+          from system.platform import detect_platform
+
+          artifacts = pathlib.Path('downloaded-bundle')
+          archives = list(artifacts.glob('*.zip')) + list(artifacts.glob('*.tar.gz'))
+          if len(archives) != 1:
+              raise SystemExit('Expected exactly one native archive.')
+          archive = archives[0]
+          metadata = json.loads(archive.with_name(archive.name + '.json').read_text())
+          host = detect_platform()
+          with archive.open('rb') as stream:
+              digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+          if (metadata['filename'] != archive.name or
+              metadata['size'] != archive.stat().st_size or metadata['sha256'] != digest or
+              metadata['os'] != host.os.value or metadata['architecture'] != host.architecture.value):
+              raise SystemExit('Archive identity, size, hash or target mismatch.')
+          report = dict(metadata, qualification='extracted-bundle-no-python-on-path',
+                        passed=False, clean_machine=False,
+                        checks=['version', 'catalog', 'self-check', 'terminal-smoke'])
+          try:
+              # Only artifacts produced by this workflow are extracted. Native ditto
+              # preserves the macOS framework symlinks and executable permissions.
+              with tempfile.TemporaryDirectory(prefix='dev-setup-extracted-') as directory:
+                  destination = pathlib.Path(directory)
+                  if sys.platform == 'darwin':
+                      subprocess.run(['/usr/bin/ditto', '-x', '-k', str(archive.resolve()), directory], check=True)
+                      executable = destination / 'DevSetup.app/Contents/MacOS/DevSetup'
+                  elif sys.platform == 'win32':
+                      with zipfile.ZipFile(archive) as bundle:
+                          bundle.extractall(destination)
+                      executable = destination / 'DevSetup/DevSetup.exe'
+                  else:
+                      with tarfile.open(archive) as bundle:
+                          bundle.extractall(destination, filter='data')
+                      executable = destination / 'DevSetup/DevSetup'
+                  if not executable.is_file() or not os.access(executable, os.X_OK):
+                      raise RuntimeError('Extracted terminal executable is missing or not executable.')
+                  verify_standalone(executable)
+                  report['passed'] = True
+          finally:
+              pathlib.Path('standalone-qualification.json').write_text(json.dumps(report, indent=2) + '\n')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DevSetup-qualification-${{ runner.os }}-${{ runner.arch }}
+          path: standalone-qualification.json
+          if-no-files-found: warn

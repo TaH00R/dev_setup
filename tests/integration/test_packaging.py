@@ -14,17 +14,83 @@ from scripts import build_tui, release_manifest, sign_bundle, tui_entry
 
 
 class PackagingTests(unittest.TestCase):
-    def test_standalone_checks_remove_host_python_and_use_absolute_executable(self):
-        with mock.patch("scripts.build_tui.subprocess.run") as run:
-            build_tui.verify_standalone()
-        self.assertEqual(len(run.call_args_list), 4)
-        for call in run.call_args_list:
-            self.assertTrue(Path(call.args[0][0]).is_absolute())
-            self.assertEqual(call.kwargs["env"]["PATH"], "")
-            self.assertNotIn("PYTHONPATH", call.kwargs["env"])
-            self.assertNotIn("PYTHONHOME", call.kwargs["env"])
-            self.assertNotIn("VIRTUAL_ENV", call.kwargs["env"])
-            self.assertFalse(call.kwargs["shell"])
+    def test_standalone_checks_remove_host_python_and_isolate_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "extracted" / "DevSetup.exe"
+            executable.parent.mkdir()
+            executable.write_bytes(b"mocked executable, never executed")
+            with (
+                mock.patch("scripts.build_tui.subprocess.run") as run,
+                mock.patch.dict(
+                    os.environ,
+                    {"PYTHONPATH": "host", "PYTHONHOME": "host", "VIRTUAL_ENV": "host"},
+                ),
+            ):
+                build_tui.verify_standalone(executable)
+            self.assertEqual(len(run.call_args_list), 4)
+            self.assertEqual(
+                [call.args[0][1:] for call in run.call_args_list],
+                [
+                    ["--version"],
+                    ["catalog", "validate"],
+                    ["--self-check"],
+                    ["--smoke-test"],
+                ],
+            )
+            for call in run.call_args_list:
+                self.assertEqual(call.args[0][0], str(executable.resolve()))
+                self.assertEqual(call.kwargs["env"]["PATH"], "")
+                for name in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV"):
+                    self.assertNotIn(name, call.kwargs["env"])
+                for name in (
+                    "HOME",
+                    "USERPROFILE",
+                    "LOCALAPPDATA",
+                    "APPDATA",
+                    "XDG_CONFIG_HOME",
+                    "XDG_DATA_HOME",
+                    "XDG_STATE_HOME",
+                ):
+                    self.assertTrue(
+                        Path(call.kwargs["env"][name]).is_relative_to(
+                            call.kwargs["cwd"]
+                        )
+                    )
+                self.assertFalse(call.kwargs["shell"])
+                self.assertTrue(call.kwargs["check"])
+                self.assertEqual(call.kwargs["timeout"], 60)
+                self.assertNotEqual(Path(call.kwargs["cwd"]), executable.parent)
+
+    def test_standalone_failure_stops_qualification_and_cleans_temporary_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "DevSetup"
+            executable.write_bytes(b"mock")
+            with mock.patch(
+                "scripts.build_tui.subprocess.run",
+                side_effect=subprocess.CalledProcessError(1, "mock"),
+            ) as run:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    build_tui.verify_standalone(executable)
+            self.assertEqual(run.call_count, 1)
+            self.assertFalse(Path(run.call_args.kwargs["cwd"]).exists())
+
+    def test_standalone_refuses_missing_executable_before_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch("scripts.build_tui.subprocess.run") as run:
+                with self.assertRaises(FileNotFoundError):
+                    build_tui.verify_standalone(Path(directory) / "missing")
+                with self.assertRaises(ValueError):
+                    build_tui.verify_standalone(Path(directory))
+            run.assert_not_called()
+
+    def test_source_terminal_smoke_uses_no_native_process_or_user_state(self):
+        with (
+            mock.patch(
+                "subprocess.Popen", side_effect=AssertionError("native command")
+            ),
+            mock.patch("sqlite3.connect", side_effect=AssertionError("state write")),
+        ):
+            self.assertEqual(tui_entry.smoke_test(), 0)
 
     def test_unattended_frozen_check_failure_returns_nonzero_without_stderr(self):
         with (

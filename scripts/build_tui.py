@@ -55,14 +55,25 @@ def executable_path() -> Path:
     return bundle / ("DevSetup.exe" if sys.platform == "win32" else "DevSetup")
 
 
-def verify_standalone() -> None:
+def verify_standalone(executable: Path | None = None) -> None:
     """Exercise the embedded interpreter with no Python or tools available on PATH."""
+    target = (executable or executable_path()).resolve(strict=True)
+    if not target.is_file():
+        raise ValueError("Standalone executable must be a regular file.")
     environment = os.environ.copy()
     for name in ("PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"):
         environment.pop(name, None)
     environment["PATH"] = ""
     environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     with tempfile.TemporaryDirectory(prefix="dev-setup-standalone-") as directory:
+        # Keep qualification state outside the developer or runner home directory.
+        environment["HOME"] = directory
+        environment["USERPROFILE"] = directory
+        environment["LOCALAPPDATA"] = str(Path(directory) / "state")
+        environment["APPDATA"] = str(Path(directory) / "state")
+        environment["XDG_CONFIG_HOME"] = str(Path(directory) / "config")
+        environment["XDG_DATA_HOME"] = str(Path(directory) / "data")
+        environment["XDG_STATE_HOME"] = str(Path(directory) / "state")
         for arguments in (
             ("--version",),
             ("catalog", "validate"),
@@ -70,7 +81,7 @@ def verify_standalone() -> None:
             ("--smoke-test",),
         ):
             subprocess.run(
-                [str(executable_path()), *arguments],
+                [str(target), *arguments],
                 cwd=directory,
                 env=environment,
                 check=True,

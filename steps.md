@@ -24,6 +24,12 @@ Do not bootstrap the application using a system Python installation.
   Verify executable permissions, Unicode, terminal resize, keyboard-only use,
   shutdown during work, missing package managers and migration of saved state.
   Building a bundle and running it on a development machine is preview evidence.
+  - [x] Add independent extracted-artifact CI jobs for all three platforms;
+    validate archive hash/target, executable permissions and isolated runtime.
+  - [x] Extend bundled smoke checks to all nine pages, keyboard search/quit,
+    80x24 resizing and Unicode; redirect state outside user directories.
+  - [ ] Collect successful fresh-runner Windows/Linux/macOS qualification reports
+    and complete interactive clean-machine/state-migration checks.
 - [ ] Complete native package workflow qualification (previous milestone 16).
   Existing disposable Ubuntu/APT evidence covers installation, real upgrade,
   removal, verification, stale plans, provenance, signed-cache integrity,
@@ -84,3 +90,13 @@ See [the detailed record](docs/tui-qualification.md).
 The user requested seven commits for this migration: roadmap; persistent session;
 terminal views/reviews; entry/build migration and GUI removal; terminal tests;
 standalone runtime verification; and documentation/validation.
+
+## Extracted-artifact qualification follow-up (2026-11-18)
+
+The next development step adds a fresh-runner artifact check after native builds,
+with archive identity/hash verification and a portable result report. Python is
+used only by the CI harness; the extracted application runs with PATH empty,
+Python environment overrides removed and temporary HOME/application-state paths.
+Local Windows checks and 563 tests (one skip) passed. CI jobs on Linux/macOS and
+clean-machine interactive validation remain pending. See the
+[qualification record](docs/tui-qualification.md#extracted-artifact-follow-up).

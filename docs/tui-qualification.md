@@ -7,7 +7,7 @@ The current product plan is [steps.md](../steps.md).
 
 ## Tested terminal workflows
 
-Headless Textual tests exercise keyboard navigation at 130?55 and resize to 80?24,
+Headless Textual tests exercise keyboard navigation at 130x55 and resize to 80x24,
 curated/category search, cancelled stale live searches with source identity,
 preserved source/version selection during partial results, actual queue controls,
 combined package plans, declined consent, separate elevation approval, background
@@ -32,7 +32,7 @@ The suite passed **560 tests with one skip**, including **18 terminal tests**.
 Ruff checked 162 files; mypy checked 91 sources. Catalog validation passed for
 14 packages and 39 reviewed mappings. Replaced GUI tests are no longer counted.
 
-## Standalone Windows artifact
+## Initial standalone Windows artifact (historical snapshot)
 
 Build command:
 
@@ -69,3 +69,41 @@ This is a developer-machine Windows preview, not a clean-machine test, signed
 release, Linux/macOS native build or package-manager qualification. Native builds
 on all targets remain configured in CI, with Qt system dependencies removed.
 Release publication remains deferred.
+
+## Extracted-artifact follow-up
+
+The build workflow now downloads the native bundle into a separate hosted-runner
+job with no application dependencies installed. Before extraction it checks the
+sidecar filename, size, SHA-256, operating system and architecture. Native macOS
+extraction preserves framework links; Linux extraction preserves executable
+permissions and applies the tar data filter. The job verifies executable access
+and runs the extracted binary from another temporary directory with PATH empty.
+Python environment overrides are removed and HOME, USERPROFILE, APPDATA,
+LOCALAPPDATA and XDG paths are redirected to disposable directories. This tests
+the shipped archive rather than relying on the builder's working bundle.
+
+The expanded bundled smoke test navigates all nine screens, resizes to 80x24 and
+140x45, renders international text, focuses search with Ctrl+F and exits with
+Ctrl+Q. It disables startup discovery, and deterministic tests reject native
+process creation or user-state writes. Actual missing-manager discovery,
+interactive terminal rendering and saved-state migration remain separate checks.
+
+Validation commands:
+
+```powershell
+.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q
+.\.venv\Scripts\python.exe -m unittest tests.integration.test_packaging -q
+.\.venv\Scripts\python.exe scripts/build_tui.py --smoke-test --archive
+```
+
+The full suite passed 563 tests with one skip; the packaging suite passed 16.
+Ruff and mypy passed. The Windows archive was rebuilt and the workflow's embedded
+extraction/qualification script was executed locally against it. The
+[follow-up evidence](evidence/tui-windows-extracted-2026-11-18.json) records its
+current hash and checks; the initial snapshot above retains its original hash.
+The current local archive replaces the earlier preview at the same filename.
+
+Hosted-runner results are not yet available. Each configured CI qualification job
+uploads `standalone-qualification.json` with the artifact digest and pass/fail
+result. These reports do not establish signing, interactive clean-machine
+qualification or native package-manager support, and do not publish a release.

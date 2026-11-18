@@ -28,10 +28,11 @@ def self_check() -> None:
 
 
 def smoke_test() -> int:
-    from textual.widgets import DataTable
+    from textual.widgets import ContentSwitcher, DataTable, Input
 
     from app.bootstrap import create_services
     from app.tui.app import DevSetupApp
+    from app.tui.pages import PAGES
 
     async def check() -> None:
         app = DevSetupApp(create_services(), auto_refresh=False)
@@ -42,7 +43,23 @@ def smoke_test() -> int:
                     break
             assert app.query_one("#catalog", DataTable).row_count == 14
             assert app.theme == "textual-dark"
-            app.action_request_quit()
+            if app.busy:
+                raise RuntimeError("Standalone startup did not finish.")
+            for page in PAGES:
+                app.navigate(page)
+                await pilot.pause()
+                assert app.query_one("#pages", ContentSwitcher).current == page.lower()
+            await pilot.resize_terminal(80, 24)
+            await pilot.press("ctrl+f")
+            assert app.focused is app.query_one("#search", Input)
+            # Rendering must retain international text even with the host PATH empty.
+            app.status(
+                "D\u00e9veloppeur \u00b7 \u958b\u767a \u00b7 \uac1c\ubc1c \u00b7 \u0645\u0637\u0648\u0631"
+            )
+            await pilot.pause()
+            await pilot.resize_terminal(140, 45)
+            await pilot.press("ctrl+q")
+            assert app.closing
 
     asyncio.run(check())
     return 0

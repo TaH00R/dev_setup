@@ -1,0 +1,26 @@
+{
+  "version": "0.1.0.dev0",
+  "os": "windows",
+  "architecture": "x86_64",
+  "filename": "DevSetup-0.1.0.dev0-windows-x86_64.zip",
+  "size": 21285417,
+  "sha256": "ae07b06f0a950c4ecfe25d0d905a47ead59fbf18e9f9d684a66db1fef3eec160",
+  "signed": false,
+  "qualification": "extracted-bundle-no-python-on-path",
+  "passed": true,
+  "clean_machine": false,
+  "checks": [
+    "version",
+    "catalog",
+    "self-check",
+    "terminal-smoke"
+  ],
+  "recorded_on": "2026-11-18",
+  "execution": "local Windows developer machine; CI execution pending",
+  "path_empty": true,
+  "python_environment_overrides_removed": true,
+  "isolated_home_and_state": true,
+  "unit_tests": 563,
+  "unit_skipped": 1,
+  "packaging_tests": 16
+}
