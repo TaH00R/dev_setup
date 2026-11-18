@@ -307,6 +307,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--approve-native-changes", action="store_true")
     profiles = parser.add_mutually_exclusive_group()
     profiles.add_argument(
+        "--apt-dpkg-repair",
+        action="store_true",
+        help="After a controlled unpack cancellation, configure pending packages, reinstall pinned CMake and test acknowledged recovery on a disposable container.",
+    )
+    profiles.add_argument(
         "--apt-dpkg",
         action="store_true",
         help="Cancel a controlled native DPKG unpack; leaves partial state requiring container disposal.",
@@ -344,7 +349,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     if (
-        args.apt_dpkg
+        args.apt_dpkg_repair
+        or args.apt_dpkg
         or args.apt_upgrade
         or args.apt_failures
         or args.apt_origins
@@ -381,7 +387,9 @@ def main(argv: list[str] | None = None) -> int:
         else platform.mac_ver()[0],
         "recorded_at": utc_now().isoformat(),
         "checks": checks,
-        "profile": "apt-dpkg"
+        "profile": "apt-dpkg-repair"
+        if args.apt_dpkg_repair
+        else "apt-dpkg"
         if args.apt_dpkg
         else "apt-auth"
         if args.apt_auth
@@ -427,7 +435,7 @@ def main(argv: list[str] | None = None) -> int:
                 runner = CommandRunner()
                 adapter = (
                     TransactionAPT(host)
-                    if args.apt_dpkg
+                    if args.apt_dpkg or args.apt_dpkg_repair
                     else DownloadLimitedAPT(host)
                     if args.apt_failures
                     else APT(host)
@@ -468,12 +476,15 @@ def main(argv: list[str] | None = None) -> int:
                     if args.apt_upgrade and isinstance(inspector, APTInspector)
                     else None
                 )
-                if args.apt_dpkg:
+                if args.apt_dpkg or args.apt_dpkg_repair:
                     with tempfile.TemporaryDirectory(
                         prefix="dev-setup-native-dpkg-"
                     ) as state_directory:
                         exercise_apt_dpkg(
-                            services, checks, Path(state_directory) / "state.sqlite3"
+                            services,
+                            checks,
+                            Path(state_directory) / "state.sqlite3",
+                            repair=args.apt_dpkg_repair,
                         )
                 elif args.apt_auth:
                     from scripts.apt_auth_checks import exercise_apt_auth

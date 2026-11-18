@@ -229,7 +229,13 @@ The [native DPKG fault](native-qualification.md#retained-apt-dpkg-interruption-e
 checks cancellation during a controlled unpack. Partial native inventory is
 unavailable rather than verified; even explicit acknowledgement cannot reconcile
 an unverified state, and the durable record continues blocking retry. No native
-repair or rollback is performed. The disposable fault container is discarded.
+repair or rollback is performed by that interruption-only profile. The disposable
+fault container is discarded.
+The separately approved [repair qualification profile](native-qualification.md#retained-apt-post-repair-recovery-evidence-2026-11-18)
+configures pending native packages and reinstalls the fixed reviewed candidate
+inside its disposable fixture. Repair does not clear the lifecycle gate: fresh
+inspection and explicit acknowledgement precede another mutation. The cancelled
+history remains cancelled. The desktop has no automatic native repair action.
 Package/runtime workers commit reviewed identity and phase evidence before native
 dispatch. Execution reports expose an aggregate plan outcome separately from item
 results and expose persistence warnings separately from native success/failure.

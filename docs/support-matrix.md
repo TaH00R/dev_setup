@@ -12,8 +12,10 @@ signed payloads were rejected with `BADSIG`. Cached release signatures now block
 corrupted-cache plans and stale approval as well. Package indexes are now decoded
 and checked against authenticated release SHA-256 and size entries. Signed release
 dates and declared expiries are checked again before execution. Controlled DPKG
-unpack cancellation now has partial-state refusal evidence. Native elevation,
-repair, broader transaction cancellation and macOS qualification remain open. Metadata
+unpack cancellation now has partial-state refusal evidence. A separate controlled
+native repair case passes reinspection, acknowledgement and fresh install/remove.
+Native elevation, broader repair/transaction cancellation and macOS qualification
+remain open. Metadata
 matches alone do not establish backend availability or a
 complete installation plan. All mutations retain command-bound approval.
 
@@ -70,7 +72,10 @@ add controlled-clock future-date rejection against real signed metadata. Declare
 expiry boundaries are unit-tested; the static native fixture has no expiry field.
 The [DPKG fault report](native-qualification.md#retained-apt-dpkg-interruption-evidence-2026-11-17)
 adds a controlled unpack interruption with partial inventory and blocked recovery;
-it does not qualify native repair or post-repair retry.
+its scope ends before repair. The separate
+[post-repair report](native-qualification.md#retained-apt-post-repair-recovery-evidence-2026-11-18)
+adds fixed native repair, fresh inspection/acknowledgement and a verified fresh
+install/remove cycle while preserving cancelled history.
 Hosted jobs have not been dispatched here. Elevation, broader DPKG transaction
 cancellation/repair, replay policy for archives without expiry, key-validity policy, macOS
 and cask qualification remain open. Milestone 16 remains unchecked.

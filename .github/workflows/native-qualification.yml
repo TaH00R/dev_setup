@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       approve_native_changes:
-        description: 'Approve package changes, private index refreshes and controlled DPKG interruption on disposable hosted runners only'
+        description: 'Approve package changes, private index refreshes, DPKG interruption and pending-package repair on disposable hosted runners only'
         type: boolean
         required: true
         default: false
@@ -57,6 +57,10 @@ jobs:
           if-no-files-found: warn
   apt-dpkg:
     if: ${{ inputs.approve_native_changes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [apt-dpkg, apt-dpkg-repair]
     runs-on: ubuntu-24.04
     container:
       image: ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
@@ -70,13 +74,13 @@ jobs:
           apt-get update
           apt-get install --yes python3 ca-certificates
       - uses: actions/checkout@v4
-      - name: Cancel controlled DPKG unpack and reject unverified recovery
-        run: python3 -m scripts.qualify_native --backend apt --apt-dpkg --approve-native-changes --output native-apt-dpkg.json
+      - name: Exercise isolated DPKG fault or explicit repair profile
+        run: python3 -m scripts.qualify_native --backend apt --${{ matrix.profile }} --approve-native-changes --output native-${{ matrix.profile }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-apt-dpkg-pending
-          path: native-apt-dpkg.json
+          name: native-${{ matrix.profile }}-pending
+          path: native-${{ matrix.profile }}.json
           if-no-files-found: warn
   homebrew:
     if: ${{ inputs.approve_native_changes }}

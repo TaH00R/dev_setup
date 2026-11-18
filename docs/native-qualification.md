@@ -52,6 +52,10 @@ It does not run on pushes, pull requests or ordinary unit-test discovery.
   cancellation and checks partial-state/recovery refusal. It deliberately leaves
   native package state requiring repair; discard that container after collecting
   its report. Never append this profile to a reusable smoke container sequence.
+  The separate `--apt-dpkg-repair` profile additionally approves configuring
+  pending native packages and reinstalling the original exact CMake candidate,
+  followed by explicit recovery acknowledgement and fresh install/remove checks.
+  The two DPKG modes use separate fresh containers through the manual job matrix.
   The `--apt-origins` profile copies the native list cache into a temporary
   directory, redirects native APT reads there and tests altered cached origins.
   Its runner refuses all mutation dispatch, even with approval. It requires
@@ -427,6 +431,43 @@ This run used no host mounts or published ports, and the owned container was
 removed after retaining evidence. Host packages and personal WSL were untouched.
 Hosted workflow execution remains untested here.
 
+## Retained APT post-repair recovery evidence (2026-11-18)
+
+The [post-repair report](evidence/apt-ubuntu24.04-x86_64-dpkg-repair-2026-11-18.json)
+extends the controlled stopped-unpack case. The separate `--apt-dpkg-repair`
+profile first proves partial inventory and blocked recovery exactly as before.
+Its explicit approval additionally covers `dpkg --configure --pending` and a
+reinstallation of the original reviewed CMake version. Both commands are bound
+to native executables and require command-specific elevation approval; no shell,
+catalog hooks, package-manager bootstrap or force flags are added. Configuring
+pending packages can run native dependency configuration and package hooks.
+This is a fixed disposable-fixture procedure, not a desktop repair facility.
+
+The tested sequence restores the reviewed version in inventory while retry
+remains blocked by the original durable record. Fresh recovery inspection reports
+`changed`: DPKG inventory does not prove historical repository provenance.
+Acknowledgement is still required and preserves the original cancelled outcome.
+After acknowledgement, fresh reviewed removal, actual installation and removal
+all verify successfully. The fresh installation must succeed rather than skip.
+Native repair itself never automatically acknowledges the recovery record.
+
+The profile uses a separate disposable Ubuntu 24.04 x86_64 container. To repeat
+after the same isolated preparation, source copy and guard setup:
+
+```sh
+python3 -m scripts.qualify_native --backend apt --apt-dpkg-repair --approve-native-changes --output /tmp/native-apt-repair.json
+```
+
+The original `--apt-dpkg` profile still performs no repair. The manual job matrix
+gives each mode a fresh container; hosted execution has not been dispatched here.
+The [DPKG configuration manual](https://manpages.ubuntu.com/manpages/noble/man1/dpkg.1.html)
+describes pending-package configuration. This does not establish general repair,
+rollback, graceful/configure/script interruption, elevation or macOS qualification.
+Repository/key-policy gaps remain open and production mutations remain disabled.
+The local run used APT 2.8.4/DPKG 1.22.6, no host mounts or published ports, and
+the owned container was removed after retaining its report. Host packages and
+personal WSL were untouched.
+
 ## Repeat the local APT profiles
 
 From a reviewed committed checkout with Docker's Linux engine running, the
@@ -496,8 +537,10 @@ fail the upgrade profile rather than bypass source checks or substitute a packag
    APT download cancellation, post-cancellation inventory, lifecycle reopening,
    reconciliation and fresh retry passed in the retained failure run.
    A controlled DPKG unpack fault now checks owned-scope termination, partial
-   inventory refusal and durable blocked recovery. Native repair and post-repair
-   retry, configure/script interruption and graceful cancellation remain open.
+   inventory refusal and durable blocked recovery. A separate controlled native
+   repair now verifies fresh inspection, acknowledgement and actual install/remove
+   afterward. Broader repair, configure/script interruption and graceful
+   cancellation remain open.
 4. Qualify Homebrew casks separately; formula success does not qualify casks.
 5. Inspect source/version identity, altered-source/candidate rejection and
    verification failure on those hosts. APT now has controlled exit-zero
@@ -527,21 +570,21 @@ documents the early `APT_CONFIG` bootstrap used for private refreshes.
 These references describe environments and commands; they are not project test
 evidence. No dependency or release-publishing change is introduced.
 
-## Local validation (2026-11-17)
+## Local validation (2026-11-18)
 
 `.\.venv\Scripts\python.exe -W error::ResourceWarning -m unittest discover -s tests -t . -q`
-ran **614 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
+ran **619 tests OK, one POSIX-only skip on Windows**. Qualification unit tests
 use fake managers; the separate real runs are recorded above. Production GUI tests confirm
 disabled mutation controls, explanatory reasons and enabled read-only verify.
-Ruff lint/format passed (187 files), mypy passed (111 source files), and catalog
+Ruff lint/format passed (189 files), mypy passed (112 source files), and catalog
 validation passed (14 packages/39 mappings).
 
-The same source snapshot ran **193 tests OK** on Ubuntu/Python 3.12.3:
+The same source snapshot ran **198 tests OK** on Ubuntu/Python 3.12.3:
 
 ```sh
-TMPDIR=/tmp/dev-setup-core-tests python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_apt_cache tests.unit.test_apt_indexes tests.unit.test_apt_freshness tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_dpkg_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
+TMPDIR=/tmp/dev-setup-core-tests python3 -W error::ResourceWarning -m unittest tests.unit.test_services tests.unit.test_inspection tests.unit.test_apt_trust tests.unit.test_apt_cache tests.unit.test_apt_indexes tests.unit.test_apt_freshness tests.unit.test_lifecycle tests.unit.test_native_qualification tests.unit.test_native_support tests.unit.test_apt_failure_checks tests.unit.test_apt_dpkg_checks tests.unit.test_apt_repair_checks tests.unit.test_apt_origin_checks tests.unit.test_apt_auth_checks tests.unit.test_apt_tamper_checks tests.integration.test_command_runner tests.integration.test_native_coordination tests.integration.test_state_recovery tests.integration.test_core_import -q
 ```
 
-These core tests use synthetic mutations; they complement the eight real APT profiles.
+These core tests use synthetic mutations; they complement the nine real APT profiles.
 The dedicated temporary directory isolates their native coordination locks.
 Qt and the full Linux dependency matrix were not exercised by this subset.

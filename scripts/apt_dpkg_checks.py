@@ -99,7 +99,11 @@ def pause_owned_dpkg(proc: Path = Path("/proc")) -> tuple[int, int] | None:
 
 
 def exercise_apt_dpkg(
-    services: DesktopServices, checks: dict[str, str], state_path: Path
+    services: DesktopServices,
+    checks: dict[str, str],
+    state_path: Path,
+    *,
+    repair: bool = False,
 ) -> None:
     """Caller must first pass the explicit disposable Ubuntu/root approval guard."""
     inspector = services.inspectors[0]
@@ -249,6 +253,10 @@ def exercise_apt_dpkg(
         checks["reconciliation_without_verified_state"] = "rejected"
         checks["retry_before_repair"] = "rejected"
         checks["native_repair"] = "not_attempted_discard_container"
+        if repair:
+            from scripts.apt_repair_checks import exercise_repair
+
+            exercise_repair(services, checks, recovery, inspected, plan)
         checks["phase"] = "complete"
     finally:
         subscription.close()
