@@ -55,6 +55,30 @@ def executable_path() -> Path:
     return bundle / ("DevSetup.exe" if sys.platform == "win32" else "DevSetup")
 
 
+def verify_standalone() -> None:
+    """Exercise the embedded interpreter with no Python or tools available on PATH."""
+    environment = os.environ.copy()
+    for name in ("PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"):
+        environment.pop(name, None)
+    environment["PATH"] = ""
+    environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    with tempfile.TemporaryDirectory(prefix="dev-setup-standalone-") as directory:
+        for arguments in (
+            ("--version",),
+            ("catalog", "validate"),
+            ("--self-check",),
+            ("--smoke-test",),
+        ):
+            subprocess.run(
+                [str(executable_path()), *arguments],
+                cwd=directory,
+                env=environment,
+                check=True,
+                timeout=60,
+                shell=False,
+            )
+
+
 def checked_leaf(path: Path) -> Path:
     checked_directory(path.parent)
     if path.is_symlink() or not path.resolve().is_relative_to(ROOT):
@@ -192,8 +216,7 @@ def main() -> int:
             ]
         )
     if args.smoke_test:
-        for mode in ("--self-check", "--smoke-test"):
-            run([str(executable_path()), mode], timeout=60)
+        verify_standalone()
     if args.archive or args.archive_only:
         signed = False
         if args.signed:

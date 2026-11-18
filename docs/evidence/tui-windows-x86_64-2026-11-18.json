@@ -1,0 +1,53 @@
+{
+  "architecture": "x86_64",
+  "archive_crc": "passed",
+  "artifact": "DevSetup-0.1.0.dev0-windows-x86_64.zip",
+  "artifact_sha256": "694f4690be240475dce1f7c8562d5b3b9d64dc72829e6ed48afa05194771ad56",
+  "artifact_size": 21284756,
+  "clean_machine_qualified": false,
+  "embedded_python_runtime": true,
+  "extracted_archive_checks": [
+    {
+      "arguments": [
+        "--version"
+      ],
+      "exit_code": 0
+    },
+    {
+      "arguments": [
+        "catalog",
+        "validate"
+      ],
+      "exit_code": 0
+    },
+    {
+      "arguments": [
+        "--self-check"
+      ],
+      "exit_code": 0
+    },
+    {
+      "arguments": [
+        "--smoke-test"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "interactive_quit_exit_code": 0,
+  "interactive_terminal_checked": true,
+  "linux_macos_native_builds_verified": false,
+  "path_empty": true,
+  "platform": "windows",
+  "python_environment_overrides_removed": true,
+  "qt_binaries_present": false,
+  "recorded_on": "2026-11-18",
+  "schema_version": 1,
+  "signed": false,
+  "status": "windows_standalone_preview_passed",
+  "terminal_tests": 18,
+  "textual_version": "8.2.8",
+  "unit_skipped": 1,
+  "unit_tests": 560,
+  "version": "0.1.0.dev0",
+  "working_directory_outside_bundle": true
+}

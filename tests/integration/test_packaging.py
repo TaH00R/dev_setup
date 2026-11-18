@@ -14,6 +14,18 @@ from scripts import build_tui, release_manifest, sign_bundle, tui_entry
 
 
 class PackagingTests(unittest.TestCase):
+    def test_standalone_checks_remove_host_python_and_use_absolute_executable(self):
+        with mock.patch("scripts.build_tui.subprocess.run") as run:
+            build_tui.verify_standalone()
+        self.assertEqual(len(run.call_args_list), 4)
+        for call in run.call_args_list:
+            self.assertTrue(Path(call.args[0][0]).is_absolute())
+            self.assertEqual(call.kwargs["env"]["PATH"], "")
+            self.assertNotIn("PYTHONPATH", call.kwargs["env"])
+            self.assertNotIn("PYTHONHOME", call.kwargs["env"])
+            self.assertNotIn("VIRTUAL_ENV", call.kwargs["env"])
+            self.assertFalse(call.kwargs["shell"])
+
     def test_unattended_frozen_check_failure_returns_nonzero_without_stderr(self):
         with (
             mock.patch.object(
